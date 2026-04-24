@@ -43,6 +43,44 @@ describe('deriveOrderItems', () => {
     expect(deriveOrderItems(call, lower)).toEqual(['1x Large Pepperoni Pizza', '1x Caesar Salad']);
   });
 
+  it('renders Order/Total chips from a cart snapshot when present', () => {
+    const call: LiveCall = {
+      call_id: 'live-snap',
+      source: 'twilio',
+      started_at: Date.now(),
+      turns: [
+        { speaker: 'agent', text: 'Hi, what can I get you?', t_ms: 0 },
+        { speaker: 'caller', text: 'one medium pepperoni and one large veggie', t_ms: 1500 },
+      ],
+      cart: {
+        items: [
+          {
+            menu_item_id: 'm_med_pep',
+            name: 'Medium Pepperoni Pizza',
+            qty: 1,
+            modifiers: [],
+            unit_price_cents: 1399,
+          },
+          {
+            menu_item_id: 'm_lg_veg',
+            name: 'Large Veggie Pizza',
+            qty: 1,
+            modifiers: [],
+            unit_price_cents: 1899,
+          },
+        ],
+        subtotal_cents: 3298,
+        t_ms: 2000,
+      },
+    };
+    const insights = deriveCallInsights(call);
+    expect(insights).toContainEqual({
+      label: 'Order',
+      values: ['1x Medium Pepperoni Pizza', '1x Large Veggie Pizza'],
+    });
+    expect(insights).toContainEqual({ label: 'Total', values: ['$32.98'] });
+  });
+
   it('infers current order sample and customer info cleanly', () => {
     const call: LiveCall = {
       call_id: 'example-order-v2',

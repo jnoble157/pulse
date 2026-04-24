@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
-import type { LiveCall, TranscriptTurn } from './types';
+import type { CartSnapshot, LiveCall, TranscriptTurn } from './types';
 
 type Props = {
   /** Number to display + dial. Plain string in E.164 (e.g. "+15752218619"). */
@@ -139,6 +139,31 @@ export function CallStage({ phoneNumber }: Props) {
             };
           }
           return appendTurn(prev, cur, ev.turn);
+        });
+      });
+
+      es.addEventListener('cart.snapshot', (raw) => {
+        const ev = JSON.parse((raw as MessageEvent).data) as {
+          call_id: string;
+          items: CartSnapshot['items'];
+          subtotal_cents: number;
+          t_ms: number;
+        };
+        setCalls((prev) => {
+          const cur = prev[ev.call_id];
+          if (!cur) return prev;
+          if (cur.cart && cur.cart.t_ms > ev.t_ms) return prev;
+          return {
+            ...prev,
+            [ev.call_id]: {
+              ...cur,
+              cart: {
+                items: ev.items,
+                subtotal_cents: ev.subtotal_cents,
+                t_ms: ev.t_ms,
+              },
+            },
+          };
         });
       });
 
@@ -371,7 +396,7 @@ export function deriveCallInsights(call: LiveCall | null): CallInsight[] {
   const transcript = call.turns.map((turn) => turn.text).join(' ');
   const lower = transcript.toLowerCase();
   const orderItems = deriveOrderItems(call, lower);
-  const orderTotal = deriveOrderTotal(transcript, lower);
+  const orderTotal = deriveOrderTotal(call, transcript, lower);
   const customerDetails = deriveCustomerDetails(call);
   const escalation = deriveEscalation(call, lower);
   const insights: CallInsight[] = [];
@@ -394,6 +419,17 @@ export function deriveCallInsights(call: LiveCall | null): CallInsight[] {
 }
 
 export function deriveOrderItems(call: LiveCall, lowerTranscript: string): string[] {
+  // Cart snapshot is authoritative when present — the orchestrator owns the
+  // canonical cart and pushes it on every change. Fall back to inference
+  // only for example calls (no orchestrator) or live calls that haven't
+  // pushed a snapshot yet.
+  if (call.cart && call.cart.items.length > 0) {
+    return call.cart.items.map((item) => {
+      const suffix = item.modifiers.length > 0 ? ` (${item.modifiers.join(', ')})` : '';
+      return `${item.qty}x ${item.name}${suffix}`;
+    });
+  }
+
   const items = new Map<string, string>();
   for (const turn of call.turns) {
     if (turn.action?.kind === 'add_to_cart') {
@@ -433,7 +469,18 @@ export function deriveOrderItems(call: LiveCall, lowerTranscript: string): strin
   return [...items.values()];
 }
 
-function deriveOrderTotal(transcript: string, lowerTranscript: string): string | null {
+function deriveOrderTotal(
+  call: LiveCall,
+  transcript: string,
+  lowerTranscript: string,
+): string | null {
+  if (call.cart && call.cart.subtotal_cents > 0) {
+    return `$${(call.cart.subtotal_cents / 100).toFixed(2)}`;
+  }
+  // For live calls without a cart snapshot, don't guess from the transcript
+  // — the agent might say "$5" while answering an unrelated question.
+  // Inference stays for example calls (which never push snapshots).
+  if (call.source !== 'example') return null;
   const dollar = transcript.match(/\$\s?(\d+(?:\.\d{2})?)/);
   if (dollar) return `$${Number(dollar[1]).toFixed(2)}`;
   if (lowerTranscript.includes('thirty-three ninety-eight')) return '$33.98';

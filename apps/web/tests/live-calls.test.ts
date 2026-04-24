@@ -178,6 +178,59 @@ describe('LiveCallStore', () => {
     expect(fin.caller_label).toBe('+15551234567');
   });
 
+  test('cart.snapshot is stored on the call and newer wins by t_ms', () => {
+    store.emitCallEvent({
+      kind: 'call.started',
+      call_id: 'c1',
+      started_at: 0,
+      source: 'twilio',
+    });
+    store.emitCallEvent({
+      kind: 'cart.snapshot',
+      call_id: 'c1',
+      items: [
+        {
+          menu_item_id: 'a',
+          name: 'A',
+          qty: 1,
+          modifiers: [],
+          unit_price_cents: 100,
+        },
+      ],
+      subtotal_cents: 100,
+      t_ms: 200,
+    });
+    let snap = store.snapshotCalls()[0];
+    expect(snap.cart?.items.map((i) => i.name)).toEqual(['A']);
+    expect(snap.cart?.subtotal_cents).toBe(100);
+
+    // Older snapshot should be ignored (out-of-order delivery).
+    store.emitCallEvent({
+      kind: 'cart.snapshot',
+      call_id: 'c1',
+      items: [],
+      subtotal_cents: 0,
+      t_ms: 100,
+    });
+    snap = store.snapshotCalls()[0];
+    expect(snap.cart?.items).toHaveLength(1);
+
+    // Newer snapshot wins.
+    store.emitCallEvent({
+      kind: 'cart.snapshot',
+      call_id: 'c1',
+      items: [
+        { menu_item_id: 'a', name: 'A', qty: 1, modifiers: [], unit_price_cents: 100 },
+        { menu_item_id: 'b', name: 'B', qty: 1, modifiers: [], unit_price_cents: 200 },
+      ],
+      subtotal_cents: 300,
+      t_ms: 300,
+    });
+    snap = store.snapshotCalls()[0];
+    expect(snap.cart?.items.map((i) => i.name)).toEqual(['A', 'B']);
+    expect(snap.cart?.subtotal_cents).toBe(300);
+  });
+
   test('call.ended for a call that never existed is still ignored', () => {
     store.emitCallEvent({
       kind: 'call.ended',

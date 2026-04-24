@@ -116,6 +116,60 @@ describe('POST /api/calls/live/push', () => {
     expect(res.status).toBe(503);
   });
 
+  test('accepts a well-formed cart.snapshot event', async () => {
+    const { POST } = await importRoute();
+    const store = await import('../lib/live-calls');
+    const seen: { kind: string }[] = [];
+    store.subscribeCallEvents((event) => seen.push(event));
+
+    const res = await POST(
+      jsonRequest(
+        {
+          kind: 'cart.snapshot',
+          call_id: 'c1',
+          items: [
+            {
+              menu_item_id: 'm_med_pep',
+              name: 'Medium Pepperoni Pizza',
+              qty: 1,
+              modifiers: [],
+              unit_price_cents: 1399,
+            },
+          ],
+          subtotal_cents: 1399,
+          t_ms: 1000,
+        },
+        { authorization: `Bearer ${TOKEN}` },
+      ),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([expect.objectContaining({ kind: 'cart.snapshot' })]);
+  });
+
+  test('rejects an oversized cart.snapshot (too many items)', async () => {
+    const { POST } = await importRoute();
+    const items = Array.from({ length: 64 }, (_, i) => ({
+      menu_item_id: `m_${i}`,
+      name: `Item ${i}`,
+      qty: 1,
+      modifiers: [],
+      unit_price_cents: 100,
+    }));
+    const res = await POST(
+      jsonRequest(
+        {
+          kind: 'cart.snapshot',
+          call_id: 'c1',
+          items,
+          subtotal_cents: 6400,
+          t_ms: 1000,
+        },
+        { authorization: `Bearer ${TOKEN}` },
+      ),
+    );
+    expect(res.status).toBe(400);
+  });
+
   test('allows local dev when token is missing', async () => {
     const env = process.env as Record<string, string | undefined>;
     delete env.LIVE_CALLS_PUSH_TOKEN;

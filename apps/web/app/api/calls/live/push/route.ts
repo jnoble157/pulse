@@ -53,6 +53,14 @@ const TurnSchema = z
     }
   });
 
+const CartSnapshotItemSchema = z.object({
+  menu_item_id: z.string().min(1).max(160),
+  name: z.string().min(1).max(160),
+  qty: z.number().int().positive().max(99),
+  modifiers: z.array(z.string().max(120)).max(12),
+  unit_price_cents: z.number().int().nonnegative().max(1_000_000),
+});
+
 const EventSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('call.started'),
@@ -65,6 +73,13 @@ const EventSchema = z.discriminatedUnion('kind', [
     kind: z.literal('turn.appended'),
     call_id: z.string().min(1).max(128),
     turn: TurnSchema,
+  }),
+  z.object({
+    kind: z.literal('cart.snapshot'),
+    call_id: z.string().min(1).max(128),
+    items: z.array(CartSnapshotItemSchema).max(32),
+    subtotal_cents: z.number().int().nonnegative().max(10_000_000),
+    t_ms: z.number().int().nonnegative(),
   }),
   z.object({
     kind: z.literal('call.ended'),

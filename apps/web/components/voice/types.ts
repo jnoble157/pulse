@@ -16,6 +16,20 @@ export type TranscriptTurn = {
     | { kind: 'lookup_menu_item'; query: string };
 };
 
+export type CartSnapshotItem = {
+  menu_item_id: string;
+  name: string;
+  qty: number;
+  modifiers: string[];
+  unit_price_cents: number;
+};
+
+export type CartSnapshot = {
+  items: CartSnapshotItem[];
+  subtotal_cents: number;
+  t_ms: number;
+};
+
 export type LiveCall = {
   call_id: string;
   source: 'twilio' | 'example';
@@ -24,4 +38,5 @@ export type LiveCall = {
   ended_at?: number;
   ended_reason?: 'hangup' | 'completed' | 'error';
   turns: TranscriptTurn[];
+  cart?: CartSnapshot;
 };

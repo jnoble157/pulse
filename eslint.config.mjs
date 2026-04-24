@@ -16,6 +16,7 @@ const nodeGlobals = {
   clearInterval: 'readonly',
   setImmediate: 'readonly',
   clearImmediate: 'readonly',
+  queueMicrotask: 'readonly',
   global: 'readonly',
   fetch: 'readonly',
   URL: 'readonly',

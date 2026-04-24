@@ -1,5 +1,5 @@
-import type { LiveCall, TranscriptTurn } from '@/components/voice/types';
-export type { LiveCall, TranscriptTurn };
+import type { CartSnapshot, LiveCall, TranscriptTurn } from '@/components/voice/types';
+export type { CartSnapshot, LiveCall, TranscriptTurn };
 
 /**
  * In-process live-call store and pub/sub.
@@ -30,6 +30,13 @@ export type CallEvent =
       kind: 'turn.appended';
       call_id: string;
       turn: TranscriptTurn;
+    }
+  | {
+      kind: 'cart.snapshot';
+      call_id: string;
+      items: CartSnapshot['items'];
+      subtotal_cents: number;
+      t_ms: number;
     }
   | {
       kind: 'call.ended';
@@ -89,7 +96,9 @@ class LiveCallStore {
       return;
     }
     let call = this.calls.get(event.call_id);
-    if (!call && event.kind === 'turn.appended') {
+    if (!call && (event.kind === 'turn.appended' || event.kind === 'cart.snapshot')) {
+      // Cart/turn events can race ahead of `call.started`; create a stub so
+      // we don't drop them, then `call.started` merges authoritative metadata.
       call = {
         call_id: event.call_id,
         source: 'twilio',
@@ -102,6 +111,18 @@ class LiveCallStore {
     if (!call) return;
     if (event.kind === 'turn.appended') {
       if (!hasTurn(call, event.turn)) call.turns.push(event.turn);
+      return;
+    }
+    if (event.kind === 'cart.snapshot') {
+      // Snapshots are authoritative — newer wins. Older snapshots can arrive
+      // out of order if the producer fires multiple in quick succession; drop
+      // any whose t_ms is older than what we already have.
+      if (call.cart && call.cart.t_ms > event.t_ms) return;
+      call.cart = {
+        items: event.items,
+        subtotal_cents: event.subtotal_cents,
+        t_ms: event.t_ms,
+      };
       return;
     }
     if (event.kind === 'call.ended') {

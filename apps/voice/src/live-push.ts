@@ -22,6 +22,14 @@ type LiveTurn = {
     | { kind: 'lookup_menu_item'; query: string };
 };
 
+type LiveCartItem = {
+  menu_item_id: string;
+  name: string;
+  qty: number;
+  modifiers: string[];
+  unit_price_cents: number;
+};
+
 type LiveEvent =
   | {
       kind: 'call.started';
@@ -31,6 +39,13 @@ type LiveEvent =
       caller_label?: string | null;
     }
   | { kind: 'turn.appended'; call_id: string; turn: LiveTurn }
+  | {
+      kind: 'cart.snapshot';
+      call_id: string;
+      items: LiveCartItem[];
+      subtotal_cents: number;
+      t_ms: number;
+    }
   | {
       kind: 'call.ended';
       call_id: string;

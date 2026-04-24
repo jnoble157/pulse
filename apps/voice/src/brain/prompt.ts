@@ -33,6 +33,8 @@ export function systemPrompt(session: CallSession): string {
     '- Pizza sizes are small, medium, and large. When asking size, include all three.',
     '- If a caller orders multiple items in one sentence, add each item once, then use `say` to confirm what you added or ask the next question. Do not keep calling tools without speaking.',
     '- Before ending an order call, state the total price in dollars.',
+    "- When confirming items or stating a total, use the values shown in the dynamic 'Current cart' / 'Subtotal' block verbatim. Do not estimate prices.",
+    '- When the caller says they want to order, ask what they\'d like (item, then size if needed). Do not re-ask "what would you like to order" — they already told you.',
     '- Confirm name + phone before completing an order.',
     '- If the caller gives both name and phone in one sentence, acknowledge and continue. Do not ask for the phone number again.',
     '- After caller confirms that is everything and gives name + phone, use `end_call` with one final confirmation line.',

@@ -37,7 +37,7 @@ import { muLawToPcm16 } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
 import { streamTts } from './audio/elevenlabs.js';
 import { decide } from './brain/decide.js';
-import { applyTool, type ToolResult } from './brain/tools.js';
+import { applyTool, type AgentTurn, type ToolResult } from './brain/tools.js';
 import { LivePushClient } from './live-push.js';
 import type { VoiceEnv } from './env.js';
 
@@ -45,6 +45,63 @@ import type { VoiceEnv } from './env.js';
 const TWILIO_MULAW_FRAME_BYTES = 160;
 const TWILIO_PLAYBACK_MARK_TIMEOUT_MS = 8_000;
 const MAX_DECIDE_TOOL_STEPS = 8;
+
+/**
+ * How long a recently-committed caller turn stays in the dedup window.
+ * Long enough to absorb an `UtteranceEnd`-promoted interim followed by a
+ * late `is_final` for the same words, short enough that the caller can
+ * legitimately repeat themselves later.
+ */
+const RECENT_COMMIT_TTL_MS = 3_000;
+
+/**
+ * If a caller's final transcript looks unfinished (trails off into a
+ * filler word, ends on an article/conjunction, or is just a short fragment
+ * with no terminal punctuation), wait this long for more audio before
+ * kicking the decide loop. Cancelled by any newer interim/final or by
+ * `UtteranceEnd` (which forces an immediate commit).
+ */
+const INCOMPLETE_UTTERANCE_HOLD_MS = 700;
+
+/**
+ * Last token of a final transcript that strongly suggests the caller is
+ * still mid-thought. Trailing fillers ("uh", "um", "like") and dangling
+ * articles/conjunctions/prepositions all qualify. The list is intentionally
+ * conservative — false positives only add ~700ms of latency, false
+ * negatives cut the caller off (much worse).
+ */
+const INCOMPLETE_TRAILING_TOKENS = new Set<string>([
+  'a',
+  'an',
+  'the',
+  'and',
+  'or',
+  'but',
+  'so',
+  'with',
+  'for',
+  'of',
+  'in',
+  'on',
+  'to',
+  'my',
+  'your',
+  'his',
+  'her',
+  'one',
+  'two',
+  'three',
+  'some',
+  'this',
+  'that',
+  'at',
+  'by',
+  'if',
+  'as',
+  'uh',
+  'um',
+  'like',
+]);
 
 export type TenantContext = {
   tenantId: string;
@@ -69,7 +126,13 @@ export class Orchestrator {
   private pendingPlaybackMarks = new Map<string, () => void>();
   private readonly livePush: LivePushClient;
   private callerNumber: string | null = null;
-  private lastFinalTranscriptSig: string | null = null;
+  /**
+   * Recently-committed caller finals (normalized text + timestamp). Used to
+   * dedupe `UtteranceEnd`-promoted interims against the late `is_final` for
+   * the same words and vice versa. Entries older than `RECENT_COMMIT_TTL_MS`
+   * are dropped so the caller can legitimately repeat themselves later.
+   */
+  private recentlyCommitted: Array<{ text: string; at: number }> = [];
   /**
    * Latest non-empty interim transcript. We hold onto it so that when
    * Deepgram fires an `UtteranceEnd` event without a corresponding
@@ -77,6 +140,13 @@ export class Orchestrator {
    * stops speaking), we can still process the caller's words.
    */
   private currentInterim: { text: string; startSec: number; durationSec: number } | null = null;
+  /**
+   * Final transcript whose commit is being held because it looks unfinished
+   * (see {@link INCOMPLETE_TRAILING_TOKENS}). Replaced or extended by any
+   * newer interim/final, flushed by `UtteranceEnd` or by the timer below.
+   */
+  private pendingFinal: { text: string; startSec: number; durationSec: number } | null = null;
+  private pendingFinalTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly twilioWs: WsWebSocket,
@@ -142,6 +212,7 @@ export class Orchestrator {
       source: 'twilio',
       caller_label: this.callerNumber ? `Inbound · ${this.callerNumber}` : 'Inbound · Twilio',
     });
+    this.emitCartSnapshot();
 
     void this.greet();
   }
@@ -168,11 +239,21 @@ export class Orchestrator {
     if (!text) {
       // An empty interim usually means VAD reset; clear the cached interim
       // so a stale value can't get force-finalized on a later UtteranceEnd.
+      // Deliberately do NOT clear `pendingFinal` — VAD may flicker
+      // between caller words and we still want to flush on UtteranceEnd.
       if (!t.is_final) this.currentInterim = null;
       return;
     }
     if (!t.is_final) {
       this.currentInterim = { text, startSec: t.start, durationSec: t.duration };
+      // A new interim means the caller is still talking — if we were
+      // holding a previously-incomplete final, replace it with the latest
+      // text and re-arm the timer so the eventual commit reflects the
+      // full sentence rather than the trailing-off snippet.
+      if (this.pendingFinal) {
+        this.pendingFinal = { text, startSec: t.start, durationSec: t.duration };
+        this.armPendingFinalTimer();
+      }
       if (this.speaking && text.length >= 2 && this.greetingDone) this.bargeIn();
       return;
     }
@@ -188,22 +269,78 @@ export class Orchestrator {
    * sentence post-greeting is the worst offender). When that happens we
    * still get an `UtteranceEnd` after `utterance_end_ms` of silence, so
    * promote the most recent interim to a final on the spot.
+   *
+   * `UtteranceEnd` also definitively answers "is the caller done?" — so if
+   * we're holding a `pendingFinal` waiting on more audio, flush it now.
    */
   private handleUtteranceEnd(): void {
+    if (this.pendingFinal) {
+      const pending = this.pendingFinal;
+      this.clearPendingFinal();
+      console.info(`[voice] utterance_end flushing pending final "${pending.text.slice(0, 60)}"`);
+      this.commitCallerFinal(pending.text, pending.startSec, pending.durationSec);
+      return;
+    }
     const interim = this.currentInterim;
     if (!interim) return;
     this.currentInterim = null;
     console.info(`[voice] utterance_end fallback for "${interim.text.slice(0, 60)}"`);
-    this.processCallerFinal(interim.text, interim.startSec, interim.durationSec);
+    this.commitCallerFinal(interim.text, interim.startSec, interim.durationSec);
   }
 
+  /**
+   * Final-text gate. Either commits immediately or holds for
+   * `INCOMPLETE_UTTERANCE_HOLD_MS` if the text looks like a trail-off.
+   * The deferred commit is replaced by any newer interim/final and flushed
+   * on `UtteranceEnd`.
+   */
   private processCallerFinal(text: string, startSec: number, durationSec: number): void {
+    if (!this.session) return;
+    if (looksIncomplete(text)) {
+      this.pendingFinal = { text, startSec, durationSec };
+      this.armPendingFinalTimer();
+      return;
+    }
+    this.clearPendingFinal();
+    this.commitCallerFinal(text, startSec, durationSec);
+  }
+
+  private armPendingFinalTimer(): void {
+    if (this.pendingFinalTimer) clearTimeout(this.pendingFinalTimer);
+    this.pendingFinalTimer = setTimeout(() => {
+      const pending = this.pendingFinal;
+      this.pendingFinalTimer = null;
+      this.pendingFinal = null;
+      if (!pending) return;
+      console.info(`[voice] pending final timed out, committing "${pending.text.slice(0, 60)}"`);
+      this.commitCallerFinal(pending.text, pending.startSec, pending.durationSec);
+    }, INCOMPLETE_UTTERANCE_HOLD_MS);
+  }
+
+  private clearPendingFinal(): void {
+    if (this.pendingFinalTimer) {
+      clearTimeout(this.pendingFinalTimer);
+      this.pendingFinalTimer = null;
+    }
+    this.pendingFinal = null;
+  }
+
+  private commitCallerFinal(text: string, startSec: number, durationSec: number): void {
     if (!this.session) return;
     const startMs = Math.round(startSec * 1000);
     const endMs = startMs + Math.round(durationSec * 1000);
-    const sig = `${startMs}:${endMs}:${text.toLowerCase()}`;
-    if (sig === this.lastFinalTranscriptSig) return;
-    this.lastFinalTranscriptSig = sig;
+    const normalized = normalizeTranscript(text);
+    const now = performance.now();
+    // Prune stale dedup entries before checking, so a real repeat after the
+    // window legitimately commits.
+    this.recentlyCommitted = this.recentlyCommitted.filter(
+      (entry) => now - entry.at <= RECENT_COMMIT_TTL_MS,
+    );
+    if (this.recentlyCommitted.some((entry) => entry.text === normalized)) {
+      console.info(`[voice] dedup skipping recently-committed "${text.slice(0, 60)}"`);
+      return;
+    }
+    this.recentlyCommitted.push({ text: normalized, at: now });
     this.session.appendTurn('caller', text, startMs, endMs);
     this.callerFinalAt = performance.now();
     if (!this.greetingReplayedWithCaller) {
@@ -240,9 +377,11 @@ export class Orchestrator {
     try {
       let obs: ToolResult | undefined = observation;
       let spokeThisLoop = false;
-      let cartAddsThisLoop = 0;
-      // Each tool call feeds back into a follow-up decision; cap at 8 to
-      // avoid a runaway loop on a confused turn.
+      // Each tool call feeds back into a follow-up decision; cap at
+      // MAX_DECIDE_TOOL_STEPS to avoid a runaway loop on a confused turn.
+      // We deliberately do NOT short-circuit on N successful adds — the LLM
+      // is responsible for confirming and asking what's next; canned lines
+      // both override its voice and (worse) used to drop live-push events.
       for (let i = 0; i < MAX_DECIDE_TOOL_STEPS; i++) {
         if (this.session.terminal) break;
         const decideStart = performance.now();
@@ -273,57 +412,11 @@ export class Orchestrator {
         }
 
         const result = applyTool(this.session, turn);
-        if (result?.kind === 'cart_added') cartAddsThisLoop += 1;
-        if (
-          result?.kind === 'cart_error' &&
-          result.reason === 'duplicate_add_for_same_caller_turn'
-        ) {
-          const line = 'Got it. I have that order down. Do you want anything else?';
-          this.session.appendTurn(
-            'agent',
-            line,
-            Math.round(this.session.now()),
-            Math.round(this.session.now()),
-          );
-          this.livePush.emit({
-            kind: 'turn.appended',
-            call_id: this.session.callId,
-            turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
-          });
-          await this.speak(line, decideMs);
-          spokeThisLoop = true;
-          break;
-        }
-        if (cartAddsThisLoop >= 2) {
-          const line = 'Got it. I added those pizzas. Do you want anything else?';
-          this.session.appendTurn(
-            'agent',
-            line,
-            Math.round(this.session.now()),
-            Math.round(this.session.now()),
-          );
-          this.livePush.emit({
-            kind: 'turn.appended',
-            call_id: this.session.callId,
-            turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
-          });
-          await this.speak(line, decideMs);
-          spokeThisLoop = true;
-          break;
-        }
-        const action = liveActionFor(turn, result);
-        if (action) {
-          this.livePush.emit({
-            kind: 'turn.appended',
-            call_id: this.session.callId,
-            turn: {
-              speaker: 'agent',
-              text: '',
-              t_ms: Date.now() - this.callStartMs,
-              action,
-            },
-          });
-        }
+        // Emit the tool action to the live UI BEFORE any further branching
+        // so multi-step turns (e.g. two add_to_cart calls in one decide
+        // loop) all surface in the captured-info panel.
+        this.emitToolAction(turn, result);
+        if (result?.kind === 'cart_added') this.emitCartSnapshot();
         const terminalKind =
           result?.kind === 'ended'
             ? 'ended'
@@ -564,6 +657,56 @@ export class Orchestrator {
     this.speaking = null;
   }
 
+  /**
+   * Push the live UI's `add_to_cart` / transfer / end_call / lookup chip for
+   * a tool result. Called for every non-`say` tool, so the captured-info
+   * panel sees every step the agent takes — not just the first one in a
+   * multi-step decide loop.
+   */
+  private emitToolAction(turn: AgentTurn, result: ToolResult | null): void {
+    if (!this.session) return;
+    const action = liveActionFor(turn, result);
+    if (!action) return;
+    this.livePush.emit({
+      kind: 'turn.appended',
+      call_id: this.session.callId,
+      turn: {
+        speaker: 'agent',
+        text: '',
+        t_ms: Date.now() - this.callStartMs,
+        action,
+      },
+    });
+  }
+
+  /**
+   * Push the authoritative cart state to the web. The web renders the
+   * Order/Total chips directly from this snapshot when present, so the
+   * captured-info panel always matches what the orchestrator actually has
+   * — no inference, no drift.
+   */
+  private emitCartSnapshot(): void {
+    if (!this.session) return;
+    const items = this.session.cart.map((cartItem) => ({
+      menu_item_id: cartItem.menu_item_id ?? '',
+      name: cartItem.item_name_spoken,
+      qty: cartItem.quantity,
+      modifiers: cartItem.modifiers.map((mod) => mod.name),
+      unit_price_cents: cartItem.unit_price_cents ?? 0,
+    }));
+    const subtotal_cents = this.session.cart.reduce(
+      (sum, cartItem) => sum + (cartItem.unit_price_cents ?? 0) * cartItem.quantity,
+      0,
+    );
+    this.livePush.emit({
+      kind: 'cart.snapshot',
+      call_id: this.session.callId,
+      items,
+      subtotal_cents,
+      t_ms: Date.now() - this.callStartMs,
+    });
+  }
+
   private async shutdown(reason: string): Promise<void> {
     if (!this.session) return;
     const session = this.session;
@@ -572,6 +715,7 @@ export class Orchestrator {
     try {
       this.deepgram?.close();
       this.speaking?.cancel();
+      this.clearPendingFinal();
       for (const resolve of this.pendingPlaybackMarks.values()) resolve();
       this.pendingPlaybackMarks.clear();
     } catch {
@@ -604,6 +748,40 @@ export class Orchestrator {
 function recoveryLine(session: CallSession): string {
   if (session.cart.length > 0) return 'Got it. Do you want anything else with that order?';
   return "Sorry, I didn't catch that. Could you repeat that once?";
+}
+
+/**
+ * Heuristic: does this final transcript look like the caller is still
+ * mid-thought? Anything that ends on a known trail-off token or is a very
+ * short fragment without terminal punctuation gets a brief grace window
+ * before we kick `decide`. The cost of being wrong:
+ *   - false positive: ~700ms latency before responding
+ *   - false negative: agent talks over the caller (much worse UX)
+ */
+function looksIncomplete(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  const normalized = trimmed.toLowerCase().replace(/[.?!,;:]+$/g, '');
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const last = words[words.length - 1]!;
+  if (INCOMPLETE_TRAILING_TOKENS.has(last)) return true;
+  // Fragments without terminal punctuation that aren't a recognizable short
+  // reply ("yes" / "no" / etc.) are usually trail-offs too.
+  const hasTerminalPunctuation = /[.?!]$/.test(trimmed);
+  if (!hasTerminalPunctuation && words.length <= 2) {
+    const isShortReply = /^(yes|yeah|yep|no|nope|sure|okay|ok|hello|hi|hey)$/i.test(last);
+    if (!isShortReply) return true;
+  }
+  return false;
+}
+
+function normalizeTranscript(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** Quantile of a numeric sample. q in [0,1]. Returns null on empty input. */

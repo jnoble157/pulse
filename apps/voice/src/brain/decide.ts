@@ -26,13 +26,18 @@ export async function decide(
 
   const obs = observation ? `\n\nLast tool returned: ${JSON.stringify(observation)}` : '';
 
+  const cart = renderCart(session);
+
   const dynamic = [
+    cart,
     `Call so far:`,
     turnsAsTranscript(session) || '(no turns yet)',
     obs,
     '',
     'Choose the next action.',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const result = await llmCall<AgentTurn>({
     name: 'voice.turn',
@@ -53,4 +58,28 @@ export async function decide(
   });
 
   return result.data;
+}
+
+/**
+ * Materialize the canonical cart into the dynamic suffix so the model can
+ * confirm the order and quote the subtotal verbatim. Without this the
+ * agent will hallucinate prices from the menu, which is exactly what the
+ * "$31.98" closeout bug was — model never saw the real cart, made up a
+ * close-but-wrong number.
+ */
+function renderCart(session: CallSession): string {
+  if (session.cart.length === 0) return '';
+  const lines = session.cart.map((item) => {
+    const price =
+      item.unit_price_cents != null && item.unit_price_cents > 0
+        ? ` ($${(item.unit_price_cents / 100).toFixed(2)})`
+        : '';
+    return `- ${item.quantity}x ${item.item_name_spoken}${price}`;
+  });
+  const subtotalCents = session.cart.reduce(
+    (sum, item) => sum + (item.unit_price_cents ?? 0) * item.quantity,
+    0,
+  );
+  const subtotal = subtotalCents > 0 ? `Subtotal: $${(subtotalCents / 100).toFixed(2)}` : null;
+  return ['Current cart:', ...lines, subtotal, ''].filter(Boolean).join('\n');
 }
