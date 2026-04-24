@@ -4,10 +4,7 @@ import { buildTwilioSignaturePayload, verifyTwilioSignature } from './twilio-sig
 
 describe('twilio signature', () => {
   test('builds payload with lexicographically sorted form params', () => {
-    const payload = buildTwilioSignaturePayload(
-      'https://example.com/twilio/voice',
-      'b=2&a=1&b=3',
-    );
+    const payload = buildTwilioSignaturePayload('https://example.com/twilio/voice', 'b=2&a=1&b=3');
     expect(payload).toBe('https://example.com/twilio/voicea1b2b3');
   });
 

@@ -141,7 +141,9 @@ export async function startServer() {
         formBody,
       });
       if (!validSignature) {
-        console.warn(`[voice] rejected unsigned /twilio/voice request (${c.req.method} ${c.req.path})`);
+        console.warn(
+          `[voice] rejected unsigned /twilio/voice request (${c.req.method} ${c.req.path})`,
+        );
         return c.text('forbidden', 403);
       }
     }

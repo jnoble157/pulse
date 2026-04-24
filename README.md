@@ -137,22 +137,22 @@ pnpm example-calls:build           # ElevenLabs TTS + ffmpeg → apps/web/public
 
 ### Minimum env
 
-| Key                     | Why                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `DEMO_PASSWORD`         | Password gate.                                                                   |
-| `DEMO_COOKIE_SECRET`    | HMAC for the gate cookie. Any 32+ byte string.                                   |
-| `TWILIO_PHONE_NUMBER`   | The number rendered on the homepage. Cosmetic if `apps/voice/` isn't deployed.   |
+| Key                     | Why                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `DEMO_PASSWORD`         | Password gate.                                                                    |
+| `DEMO_COOKIE_SECRET`    | HMAC for the gate cookie. Any 32+ byte string.                                    |
+| `TWILIO_PHONE_NUMBER`   | The number rendered on the homepage. Cosmetic if `apps/voice/` isn't deployed.    |
 | `LIVE_CALLS_PUSH_TOKEN` | Bearer token for `/api/calls/live/push`. Required for public/prod deployments.    |
-| `ANTHROPIC_API_KEY`     | `apps/voice/` only — Claude Sonnet 4.5 powers the per-turn decision.             |
-| `DEEPGRAM_API_KEY`      | `apps/voice/` only — streaming STT.                                              |
-| `ELEVENLABS_API_KEY`    | `apps/voice/` only — streaming TTS for the live agent.                           |
-| `ELEVENLABS_VOICE_ID`   | `apps/voice/` only — paid-tier voice id.                                         |
+| `ANTHROPIC_API_KEY`     | `apps/voice/` only — Claude Sonnet 4.5 powers the per-turn decision.              |
+| `DEEPGRAM_API_KEY`      | `apps/voice/` only — streaming STT.                                               |
+| `ELEVENLABS_API_KEY`    | `apps/voice/` only — streaming TTS for the live agent.                            |
+| `ELEVENLABS_VOICE_ID`   | `apps/voice/` only — paid-tier voice id.                                          |
 | `TWILIO_ACCOUNT_SID`    | `apps/voice/` only — Twilio account identifier (for future outbound flows).       |
 | `TWILIO_AUTH_TOKEN`     | `apps/voice/` only — required in production to verify Twilio webhook signatures.  |
-| `DATABASE_URL`          | Postgres after `pnpm db:migrate`.                                                |
+| `DATABASE_URL`          | Postgres after `pnpm db:migrate`.                                                 |
 | `PII_ENCRYPTION_KEY`    | Reserved for encrypted PII maps; keep stable if you start writing encrypted rows. |
-| `PUBLIC_BASE_URL`       | Voice server URL Twilio reaches (defaults to `http://127.0.0.1:8788` for local). |
-| `WEB_BASE_URL`          | Next origin for transcript push (defaults to `http://127.0.0.1:3000`).           |
+| `PUBLIC_BASE_URL`       | Voice server URL Twilio reaches (defaults to `http://127.0.0.1:8788` for local).  |
+| `WEB_BASE_URL`          | Next origin for transcript push (defaults to `http://127.0.0.1:3000`).            |
 
 After a fresh DB, run `pnpm seed:voice` once to create the `tonys-pizza-austin` tenant + menu.
 
