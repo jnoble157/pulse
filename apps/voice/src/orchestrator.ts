@@ -275,7 +275,7 @@ export class Orchestrator {
       turn: { speaker: 'agent', text, t_ms: 0 },
     });
     try {
-      await this.speak(text, 0);
+      await this.speak(text, 0, { waitForPlayback: true });
     } finally {
       this.greetingDone = true;
     }
