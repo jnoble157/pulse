@@ -1,6 +1,7 @@
 'use server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
+import { sanitizeNextPath } from './sanitize-next';
 
 const GATE_COOKIE = 'pulse_gate';
 
@@ -11,7 +12,7 @@ const GATE_COOKIE = 'pulse_gate';
  */
 export async function gateSubmit(formData: FormData) {
   const password = String(formData.get('password') ?? '');
-  const next = String(formData.get('next') ?? '/');
+  const next = sanitizeNextPath(String(formData.get('next') ?? '/'));
   const expected = process.env.DEMO_PASSWORD ?? '';
   const secret = process.env.DEMO_COOKIE_SECRET ?? '';
 

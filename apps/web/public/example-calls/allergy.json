@@ -1,6 +1,6 @@
 {
   "audio_url": "/example-calls/allergy.mp3",
-  "duration_ms": 21923,
+  "duration_ms": 21894,
   "turns": [
     {
       "speaker": "agent",
@@ -14,18 +14,18 @@
     },
     {
       "speaker": "agent",
-      "text": "We do have gluten-free crust, but I can't promise it's safe for celiac because we use the same kitchen and oven. I can get a manager on the line to go over options with you.",
+      "text": "We don't have a gluten-free option on our menu, and I don't want to give unsafe allergy guidance. I can connect you with a person right now to help.",
       "t_ms": 8198
     },
     {
       "speaker": "caller",
       "text": "Yeah, please. I just want to be careful.",
-      "t_ms": 16871
+      "t_ms": 16175
     },
     {
       "speaker": "agent",
-      "text": "Absolutely. One sec, I'll grab the manager.",
-      "t_ms": 19554
+      "text": "Absolutely. One sec, I'm transferring you to a person.",
+      "t_ms": 18858
     }
   ]
 }

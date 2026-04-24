@@ -20,6 +20,7 @@ const HEARTBEAT_MS = 15_000;
 
 export async function GET(): Promise<Response> {
   const encoder = new TextEncoder();
+  let cleanup: (() => void) | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -47,7 +48,7 @@ export async function GET(): Promise<Response> {
         }
       }, HEARTBEAT_MS);
 
-      const cleanup = () => {
+      cleanup = () => {
         clearInterval(heartbeat);
         unsubscribe();
         try {
@@ -59,11 +60,10 @@ export async function GET(): Promise<Response> {
 
       // Next.js doesn't currently surface a per-request abort signal to
       // ReadableStream.start; we rely on the cancel hook below for cleanup.
-      (controller as unknown as { __cleanup?: () => void }).__cleanup = cleanup;
     },
     cancel(reason) {
-      const cleanup = (this as unknown as { __cleanup?: () => void }).__cleanup;
-      if (cleanup) cleanup();
+      cleanup?.();
+      cleanup = null;
       // reason is informational; SSE clients close routinely on navigation
       void reason;
     },

@@ -103,12 +103,12 @@ const SCENARIOS: Record<string, { caller_voice: string; turns: ScriptedTurn[] }>
       },
       {
         speaker: 'agent',
-        text: "We do have gluten-free crust, but I can't promise it's safe for celiac because we use the same kitchen and oven. I can get a manager on the line to go over options with you.",
+        text: "We don't have a gluten-free option on our menu, and I don't want to give unsafe allergy guidance. I can connect you with a person right now to help.",
       },
       { speaker: 'caller', text: 'Yeah, please. I just want to be careful.' },
       {
         speaker: 'agent',
-        text: "Absolutely. One sec, I'll grab the manager.",
+        text: "Absolutely. One sec, I'm transferring you to a person.",
       },
     ],
   },

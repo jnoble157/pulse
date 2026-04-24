@@ -1,6 +1,6 @@
 {
   "audio_url": "/example-calls/order.mp3",
-  "duration_ms": 26897,
+  "duration_ms": 29646,
   "turns": [
     {
       "speaker": "agent",
@@ -9,33 +9,33 @@
     },
     {
       "speaker": "caller",
-      "text": "Hey, can I do a pickup order? One large pepperoni.",
+      "text": "Hi, can I place a pickup order?",
       "t_ms": 3194
     },
     {
       "speaker": "agent",
-      "text": "Sure thing. One large pepperoni for pickup. Want a salad or any drinks with that?",
-      "t_ms": 6852
+      "text": "Sure thing. We have cheese, pepperoni, and veggie pizzas in small, medium, or large. What would you like?",
+      "t_ms": 5366
     },
     {
       "speaker": "caller",
-      "text": "Yeah, a Caesar — no croutons, please.",
-      "t_ms": 11485
+      "text": "One medium pepperoni and one large veggie.",
+      "t_ms": 11578
     },
     {
       "speaker": "agent",
-      "text": "Got it. Large pepperoni and a Caesar, no croutons. Comes to twenty-two fifty, about twenty minutes. Can I grab a name?",
-      "t_ms": 14261
+      "text": "Got it. That's one medium pepperoni and one large veggie. Your total is thirty-three ninety-eight. Can I get a name and phone number?",
+      "t_ms": 14446
     },
     {
       "speaker": "caller",
-      "text": "It's for Mike. M-I-K-E.",
-      "t_ms": 22099
+      "text": "It's for Mike. The number is 512-555-0142.",
+      "t_ms": 21262
     },
     {
       "speaker": "agent",
-      "text": "Thanks Mike. See you in twenty.",
-      "t_ms": 24828
+      "text": "Thanks Mike. We'll have that ready for pickup in about 15 minutes.",
+      "t_ms": 25988
     }
   ]
 }

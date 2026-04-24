@@ -1,5 +1,5 @@
 /**
- * Password-gated access (AGENTS.md §Hard invariants #14).
+ * Password-gated access.
  *
  * v1 demo: single `DEMO_PASSWORD` on every page that isn't public. Clerk
  * replaces this post-v1 (SECURITY.md §4). The `/` route is now the demo
@@ -30,6 +30,17 @@ export async function middleware(req: NextRequest) {
   const password = process.env.DEMO_PASSWORD;
   const secret = process.env.DEMO_COOKIE_SECRET;
   if (!password || !secret) {
+    const accept = req.headers.get('accept') ?? '';
+    const wantsHtml = accept.includes('text/html');
+    if (wantsHtml) {
+      return new NextResponse(
+        '<!doctype html><html><body><h1>Pulse is misconfigured</h1><p>Set DEMO_PASSWORD and DEMO_COOKIE_SECRET.</p></body></html>',
+        {
+          status: 503,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        },
+      );
+    }
     return NextResponse.json(
       { error: 'gate_misconfigured', hint: 'Set DEMO_PASSWORD and DEMO_COOKIE_SECRET.' },
       { status: 503 },

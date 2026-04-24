@@ -104,7 +104,7 @@ export default [
           patterns: [
             {
               group: ['@anthropic-ai/sdk', '@anthropic-ai/sdk/*', 'openai', 'openai/*'],
-              message: 'Use llm.call() from @pulse/telemetry. See AGENTS.md §Hard invariants #6.',
+              message: 'Use llm.call() from @pulse/telemetry. See AGENTS.md §Hard invariants #2.',
             },
           ],
         },

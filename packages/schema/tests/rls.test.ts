@@ -1,7 +1,7 @@
 /**
  * Cross-tenant isolation smoke tests.
  *
- * Enforces AGENTS.md §Hard invariants #3 and SECURITY.md §3:
+ * Enforces AGENTS.md §Hard invariants #4 and SECURITY.md §3:
  *   - every tenant-scoped table has an active policy (introspection)
  *   - query without `app.tenant_id` set → 0 rows
  *   - query with tenant A → only tenant A rows

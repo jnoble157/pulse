@@ -26,6 +26,7 @@ import type { WebSocket as WsWebSocket } from 'ws';
 import { env } from './env.js';
 import { Orchestrator, type TenantContext } from './orchestrator.js';
 import { resolveTenantContext } from './tenant.js';
+import { verifyTwilioSignature } from './twilio-signature.js';
 
 const TENANT_BOOT_TIMEOUT_MS = 90_000;
 
@@ -122,7 +123,28 @@ export async function startServer() {
   });
 
   const publicBase = e.PUBLIC_BASE_URL.replace(/\/+$/, '');
-  const serveTwilioVoice = (c: Context) => {
+  const serveTwilioVoice = async (c: Context) => {
+    const requireTwilioSignature =
+      process.env.NODE_ENV === 'production' || process.env.PULSE_REQUIRE_TWILIO_SIGNATURE === '1';
+    if (requireTwilioSignature) {
+      const rawUrl = new URL(c.req.url);
+      const expectedUrl = `${publicBase}${c.req.path}${rawUrl.search}`;
+      const formBody =
+        c.req.method === 'POST' &&
+        (c.req.header('content-type') ?? '').includes('application/x-www-form-urlencoded')
+          ? await c.req.raw.text()
+          : '';
+      const validSignature = verifyTwilioSignature({
+        authToken: e.TWILIO_AUTH_TOKEN,
+        expectedUrl,
+        signatureHeader: c.req.header('x-twilio-signature') ?? null,
+        formBody,
+      });
+      if (!validSignature) {
+        console.warn(`[voice] rejected unsigned /twilio/voice request (${c.req.method} ${c.req.path})`);
+        return c.text('forbidden', 403);
+      }
+    }
     if (!tenant) {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

@@ -39,6 +39,7 @@ type LiveEvent =
     };
 
 export class LivePushClient {
+  private static readonly REQUEST_TIMEOUT_MS = 3_000;
   private readonly endpoint: string | null;
   private readonly token: string | null;
   private warned = false;
@@ -76,6 +77,7 @@ export class LivePushClient {
           authorization: `Bearer ${this.token!}`,
         },
         body: JSON.stringify(event),
+        signal: AbortSignal.timeout(LivePushClient.REQUEST_TIMEOUT_MS),
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => '');

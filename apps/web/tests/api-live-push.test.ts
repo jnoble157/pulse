@@ -9,13 +9,18 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 const TOKEN = 'test-token-' + Math.random().toString(36).slice(2);
 
 beforeEach(() => {
+  const env = process.env as Record<string, string | undefined>;
   vi.resetModules();
-  process.env.LIVE_CALLS_PUSH_TOKEN = TOKEN;
+  delete env.NODE_ENV;
+  delete env.VERCEL;
+  delete env.PULSE_REQUIRE_PUSH_TOKEN;
+  env.LIVE_CALLS_PUSH_TOKEN = TOKEN;
   (globalThis as { __pulseLiveCallStore?: unknown }).__pulseLiveCallStore = undefined;
 });
 
 afterEach(() => {
-  delete process.env.LIVE_CALLS_PUSH_TOKEN;
+  const env = process.env as Record<string, string | undefined>;
+  delete env.LIVE_CALLS_PUSH_TOKEN;
   (globalThis as { __pulseLiveCallStore?: unknown }).__pulseLiveCallStore = undefined;
 });
 
@@ -92,5 +97,39 @@ describe('POST /api/calls/live/push', () => {
       ),
     );
     expect(res.status).toBe(400);
+  });
+
+  test('fails closed in production when token is missing', async () => {
+    const env = process.env as Record<string, string | undefined>;
+    delete env.LIVE_CALLS_PUSH_TOKEN;
+    env.NODE_ENV = 'production';
+    vi.resetModules();
+    const { POST } = await importRoute();
+    const res = await POST(
+      jsonRequest({
+        kind: 'call.started',
+        call_id: 'c1',
+        started_at: Date.now(),
+        source: 'twilio',
+      }),
+    );
+    expect(res.status).toBe(503);
+  });
+
+  test('allows local dev when token is missing', async () => {
+    const env = process.env as Record<string, string | undefined>;
+    delete env.LIVE_CALLS_PUSH_TOKEN;
+    env.NODE_ENV = 'development';
+    vi.resetModules();
+    const { POST } = await importRoute();
+    const res = await POST(
+      jsonRequest({
+        kind: 'call.started',
+        call_id: 'c1',
+        started_at: Date.now(),
+        source: 'twilio',
+      }),
+    );
+    expect(res.status).toBe(204);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * withTenant: binds `app.tenant_id` for the duration of a callback.
  *
- * Per AGENTS.md §Hard invariants #3 and SECURITY.md §3, every DB query must
+ * Per AGENTS.md §Hard invariants #4 and SECURITY.md §3, every DB query must
  * run with `app.tenant_id` set so RLS can enforce isolation. We use
  * `SET LOCAL` inside a transaction so pooled connections don't leak.
  *
@@ -11,7 +11,7 @@
  *   });
  *
  * Cross-tenant paths (admin metrics, billing aggregation) live in a
- * separate package and must not use this helper — they use withAdmin().
+ * separate paths and must not use this helper — they use withAdmin().
  */
 import { sql } from 'drizzle-orm';
 
@@ -54,10 +54,10 @@ export async function withTenant<TDb extends DbLike, T>(
 
 /**
  * Admin/service-role path. Explicitly clears `app.tenant_id` so RLS returns
- * zero rows on tenant-scoped tables — admin queries must target
- * packages/schema/admin/ views/functions that read cross-tenant.
+ * zero rows on tenant-scoped tables — admin queries must explicitly annotate
+ * and test cross-tenant access.
  *
- * AGENTS.md §Hard invariants #3: cross-tenant access needs
+ * AGENTS.md §Hard invariants #4: cross-tenant access needs
  * `// CROSS-TENANT: reason` comments + tests.
  */
 export async function withAdmin<TDb extends DbLike, T>(

@@ -28,7 +28,7 @@ Violating one of these is a blocker, not a preference. Don't.
 
 6. **No fake liveness.** The transcript area shows real turns from real call sessions (whether live or example playback driven by the example endpoint). Don't add a hardcoded "thinking…" animation, a fabricated latency display, or a canned response that wasn't actually emitted by the agent or the example simulator. If you can't back what's on screen with an event that fired, don't put it there.
 
-7. **Mobile-first. No page ships broken below 375px.** Touch targets ≥ 44px. The phone number must be tap-to-dial via `tel:` on mobile. See [`docs/DESIGN.md §9`](docs/DESIGN.md#9-mobile-first-rules).
+7. **Mobile-first. No page ships broken below 375px.** Touch targets ≥ 44px. The phone number must be tap-to-dial via `tel:` on mobile. See [`docs/DESIGN.md`](docs/DESIGN.md#mobile).
 
 8. **No placeholder copy. Ever.** Every UI string is written with intent. If you don't know what goes in a slot, ask.
 
@@ -45,7 +45,7 @@ Violating one of these is a blocker, not a preference. Don't.
 - Bypass `llm.call()` to save a line.
 - Add a DB column without a Drizzle migration in the same PR.
 - Disable RLS "to debug faster." Use `SET LOCAL app.tenant_id = '...'`.
-- Inline real phone numbers, emails, or names anywhere in code or docs except `TWILIO_PHONE_NUMBER`.
+- Inline real phone numbers, emails, or names anywhere in code or docs except `TWILIO_PHONE_NUMBER` and the explicit contact links in `docs/DEMO.md`.
 - Commit `.env*` files.
 - Fabricate file paths or line numbers. Grep first.
 - Hardcode colors, font sizes, or spacing. Use tokens.

@@ -22,6 +22,7 @@ const Schema = z.object({
   ELEVENLABS_API_KEY: z.string().min(1),
   ELEVENLABS_VOICE_ID: z.string().min(1),
   ELEVENLABS_MODEL: z.string().default('eleven_flash_v2_5'),
+  TWILIO_AUTH_TOKEN: z.string().min(1),
   /**
    * Web app base URL the agent posts live transcript events to so the
    * homepage shows the call in real time. Optional — agent still answers

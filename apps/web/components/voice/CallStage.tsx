@@ -687,13 +687,17 @@ function CallTranscript({ call }: { call: LiveCall | null }) {
     >
       <ol className="space-y-3">
         {turns.map((turn, i) => (
-          <TurnRow key={i} turn={turn} />
+          <TurnRow key={turnKey(turn, i)} turn={turn} />
         ))}
         {!call.ended_at ? <ListeningRow /> : null}
         {call.ended_at ? <EndedRow reason={call.ended_reason ?? 'completed'} /> : null}
       </ol>
     </div>
   );
+}
+
+function turnKey(turn: TranscriptTurn, i: number): string {
+  return `${turn.speaker}:${turn.t_ms}:${turn.text}:${JSON.stringify(turn.action ?? null)}:${i}`;
 }
 
 function CallInsights({ call }: { call: LiveCall | null }) {

@@ -1,11 +1,11 @@
 /**
  * Drizzle schema — single source of truth for DB structure.
  *
- * Mirrors ARCHITECTURE.md §data-model. Every tenant-scoped table includes
+ * Every tenant-scoped table includes
  * `tenant_id uuid not null` and an RLS policy applied via src/rls.ts.
  *
  * Invariant: a duplicated type/interface that mirrors one of these is a bug
- * (AGENTS.md §Hard invariants #2). Derive via Drizzle's `$inferSelect` /
+ * (AGENTS.md §Hard invariants #1). Derive via Drizzle's `$inferSelect` /
  * `$inferInsert` or Zod schemas.
  */
 import {
@@ -602,7 +602,7 @@ export const audit_log = pgTable(
 /**
  * Every tenant-scoped table. Used by src/rls.ts and the rls.test.ts
  * introspection check. Adding a tenant-scoped table means adding it here;
- * the introspection test will fail otherwise (AGENTS.md §Hard invariants #3).
+ * the introspection test will fail otherwise (AGENTS.md §Hard invariants #4).
  */
 export const TENANT_SCOPED_TABLES = [
   'tenants',

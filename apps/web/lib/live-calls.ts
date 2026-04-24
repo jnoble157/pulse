@@ -1,3 +1,6 @@
+import type { LiveCall, TranscriptTurn } from '@/components/voice/types';
+export type { LiveCall, TranscriptTurn };
+
 /**
  * In-process live-call store and pub/sub.
  *
@@ -34,29 +37,6 @@ export type CallEvent =
       ended_at: number;
       reason: 'hangup' | 'completed' | 'error';
     };
-
-export type TranscriptTurn = {
-  speaker: 'caller' | 'agent';
-  text: string;
-  /** ms since call start */
-  t_ms: number;
-  /** Optional structured action attached to an agent turn. */
-  action?:
-    | { kind: 'add_to_cart'; item: string; qty: number; modifiers?: string[] }
-    | { kind: 'transfer_to_staff'; reason: string }
-    | { kind: 'end_call' }
-    | { kind: 'lookup_menu_item'; query: string };
-};
-
-export type LiveCall = {
-  call_id: string;
-  source: 'twilio' | 'example';
-  caller_label?: string | null;
-  started_at: number;
-  ended_at?: number;
-  ended_reason?: 'hangup' | 'completed' | 'error';
-  turns: TranscriptTurn[];
-};
 
 type Listener = (event: CallEvent) => void;
 

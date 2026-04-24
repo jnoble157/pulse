@@ -18,19 +18,19 @@ export const runtime = 'nodejs';
 const TurnSchema = z
   .object({
     speaker: z.enum(['caller', 'agent']),
-    text: z.string(),
+    text: z.string().max(2_000),
     t_ms: z.number().int().nonnegative(),
     action: z
       .union([
         z.object({
           kind: z.literal('add_to_cart'),
-          item: z.string(),
+          item: z.string().min(1).max(160),
           qty: z.number().int().positive(),
-          modifiers: z.array(z.string()).optional(),
+          modifiers: z.array(z.string().max(120)).max(12).optional(),
         }),
-        z.object({ kind: z.literal('transfer_to_staff'), reason: z.string() }),
+        z.object({ kind: z.literal('transfer_to_staff'), reason: z.string().min(1).max(240) }),
         z.object({ kind: z.literal('end_call') }),
-        z.object({ kind: z.literal('lookup_menu_item'), query: z.string() }),
+        z.object({ kind: z.literal('lookup_menu_item'), query: z.string().min(1).max(160) }),
       ])
       .optional(),
   })
@@ -56,32 +56,50 @@ const TurnSchema = z
 const EventSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('call.started'),
-    call_id: z.string().min(1),
+    call_id: z.string().min(1).max(128),
     started_at: z.number().int().nonnegative(),
     source: z.enum(['twilio', 'example']),
-    caller_label: z.string().nullish(),
+    caller_label: z.string().max(160).nullish(),
   }),
   z.object({
     kind: z.literal('turn.appended'),
-    call_id: z.string().min(1),
+    call_id: z.string().min(1).max(128),
     turn: TurnSchema,
   }),
   z.object({
     kind: z.literal('call.ended'),
-    call_id: z.string().min(1),
+    call_id: z.string().min(1).max(128),
     ended_at: z.number().int().nonnegative(),
     reason: z.enum(['hangup', 'completed', 'error']),
   }),
 ]);
 
 const TOKEN = process.env.LIVE_CALLS_PUSH_TOKEN;
+const MAX_BODY_BYTES = 32_768;
+
+function requiresPushToken(): boolean {
+  return (
+    process.env.PULSE_REQUIRE_PUSH_TOKEN === '1' ||
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1'
+  );
+}
 
 export async function POST(request: Request): Promise<Response> {
+  if (requiresPushToken() && !TOKEN) {
+    return new Response('live push is disabled: LIVE_CALLS_PUSH_TOKEN is not configured', {
+      status: 503,
+    });
+  }
   if (TOKEN) {
     const auth = request.headers.get('authorization');
     if (auth !== `Bearer ${TOKEN}`) {
       return new Response('unauthorized', { status: 401 });
     }
+  }
+  const contentLength = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    return new Response('payload too large', { status: 413 });
   }
 
   let body: unknown;

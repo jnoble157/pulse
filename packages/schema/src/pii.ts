@@ -1,11 +1,10 @@
 /**
  * PII tokenization primitives (SECURITY.md §2, ADR-009).
  *
- * Pure types + helpers. The actual redactor (detectors + crypto) lives in
- * packages/extraction/redact/, using these shapes.
+ * Pure types + helpers for tokenized PII maps.
  *
  * Invariant: raw PII never appears in an LLM prompt
- * (AGENTS.md §Hard invariants #4).
+ * (AGENTS.md §Hard invariants #3).
  */
 import { z } from 'zod';
 

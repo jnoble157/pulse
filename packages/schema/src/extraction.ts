@@ -6,8 +6,7 @@
  *   - downstream consumers (packages/guest-graph, packages/insights)
  *   - eval golden-set truth files (packages/evals)
  *
- * Every *_Signal carries a transcript_span. No span, no clickable insight,
- * no Pulse (AGENTS.md §Hard invariants #9).
+ * Every *_Signal carries a transcript_span. No span, no clickable insight.
  */
 import { z } from 'zod';
 

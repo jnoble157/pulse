@@ -200,7 +200,7 @@ export class Orchestrator {
       let obs: ToolResult | undefined = observation;
       let spokeThisLoop = false;
       let cartAddsThisLoop = 0;
-      // Each tool call feeds back into a follow-up decision; cap at 4 to
+      // Each tool call feeds back into a follow-up decision; cap at 8 to
       // avoid a runaway loop on a confused turn.
       for (let i = 0; i < MAX_DECIDE_TOOL_STEPS; i++) {
         if (this.session.terminal) break;
@@ -445,6 +445,20 @@ export class Orchestrator {
         },
         onError: (err) => {
           console.warn('[voice] tts error:', err.message);
+          if (sentFrames === 0 && this.session && !this.session.terminal) {
+            const fallback = "Sorry, I'm having trouble speaking right now. Could you repeat that?";
+            this.session.appendTurn(
+              'agent',
+              fallback,
+              Math.round(this.session.now()),
+              Math.round(this.session.now()),
+            );
+            this.livePush.emit({
+              kind: 'turn.appended',
+              call_id: this.session.callId,
+              turn: { speaker: 'agent', text: fallback, t_ms: Date.now() - this.callStartMs },
+            });
+          }
           this.speaking = null;
           resolve();
         },
@@ -482,7 +496,11 @@ export class Orchestrator {
   private bargeIn(): void {
     if (!this.streamSid || !this.speaking) return;
     console.info('[voice] barge-in detected, clearing buffer');
-    this.twilioWs.send(makeClear(this.streamSid));
+    try {
+      this.twilioWs.send(makeClear(this.streamSid));
+    } catch (err) {
+      console.warn('[voice] twilio clear send failed:', (err as Error).message);
+    }
     this.speaking.cancel();
     this.speaking = null;
   }

@@ -43,7 +43,7 @@ jobs:
           cache: pnpm
 
       - name: Install
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
 
       # Migrations must run before `pnpm check`: turbo runs @pulse/schema tests
       # against DATABASE_URL, and RLS tests need the `tenants` table etc.
@@ -72,12 +72,6 @@ jobs:
           RLS_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pulse_test
         run: pnpm check
 
-      - name: Schema tests (sanity, DB already migrated)
-        env:
-          DATABASE_URL: postgres://pulse_ci:postgres@localhost:5432/pulse_test
-          RLS_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pulse_test
-        run: pnpm --filter @pulse/schema test
-
   format:
     runs-on: ubuntu-latest
     steps:
@@ -89,5 +83,5 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm install --frozen-lockfile
       - run: pnpm format:check

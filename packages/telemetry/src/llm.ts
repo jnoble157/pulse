@@ -1,7 +1,7 @@
 /**
  * llm.call() — the chokepoint every LLM call in Pulse flows through.
  *
- * Responsibilities (AGENTS.md §Hard invariants #6):
+ * Responsibilities (AGENTS.md §Hard invariants #2):
  *   - Call the right vendor for the requested model.
  *   - Cacheable prefix ↔ dynamic suffix (Anthropic prompt caching, ADR-002).
  *   - Zod-validated structured outputs via tool use.

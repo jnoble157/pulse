@@ -1,18 +1,16 @@
 # Pulse
 
-A voice agent that takes restaurant calls, on a phone number you can dial.
+Restaurant voice agent demo. Dial a number, hear it answer, watch transcript live.
 
 Pulse is a single-page demo that puts a real working voice agent in front of a visitor. The front door at `/` shows a Twilio number and two pre-recorded sample calls (a normal pickup order and a gluten-allergy question the agent refuses to guess about). Both the sample playback and any real call coming in to the Twilio number stream into the same live transcript area on the page, so what you read is what the agent actually said and heard.
 
-**Status:** Pivoted to a voice-agent-first demo on 2026-04-23. The previous analytics surface (operator brief, dashboard depth at `/internals/*`, extraction + insights pipelines, eval harness) was removed from the repo. See [ADR-038](docs/DECISIONS.md#adr-038--pivot-to-a-voice-agent-demo-remove-the-analytics-surface) for the why and [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
+**Status:** Voice-agent-first demo since 2026-04-23. Previous analytics surfaces were removed (see [ADR-038](docs/DECISIONS.md#adr-038--pivot-to-a-voice-agent-demo-remove-the-analytics-surface)).
 
-**Known gap:** Live **transcript over SSE works** for real Twilio calls; **handset audio outbound** (ElevenLabs → Twilio Media Stream) is still under investigation — see [HANDOFF § PSTN outbound audio](docs/HANDOFF.md#pstn-outbound-audio-open-issue--apr-2026).
+**Known gap:** Live transcript works; PSTN outbound audio is still being debugged. Details: [HANDOFF § PSTN outbound audio](docs/HANDOFF.md#pstn-outbound-audio-open-issue--apr-2026).
 
 ## Why this shape
 
-A dashboard built on synthetic calls asks the visitor to trust aggregates they cannot verify. A **phone number that answers**, or **audio samples** you can play in a few seconds, does not. The test for this demo is simple: open the URL, play a sample (normal order), play another (allergy edge case), or dial the number and try it yourself.
-
-The analytics narrative — extraction → insights → operator brief — that earlier ADRs spent real work building is in git history. ADR-038 spells out the trade-offs and what would be involved in bringing it back as a follow-on surface.
+Proof beats claims. The demo is intentionally simple: open `/`, play two samples, or dial the number. If it answers and the transcript matches, it works.
 
 ## Architecture
 
@@ -104,7 +102,7 @@ docs/
 
 ## Running it
 
-Requirements: Node 22+, pnpm 10+, Docker (for local Postgres — only required if you want to boot the voice agent).
+Requirements: Node 22+, pnpm 10+, Docker (only needed for local Postgres/voice boot).
 
 ```bash
 pnpm install
@@ -116,13 +114,13 @@ pnpm check                         # typecheck + lint
 pnpm dev                           # Next on :3000 + voice agent on :8788
 ```
 
-Open <http://localhost:3000>. Hit the password gate. You get the Twilio number and two sample-call buttons.
+Open <http://localhost:3000>, pass the gate, use the two sample calls or dial the number.
 
-**Sample calls:** the transcript streams over the same SSE channel as a real call. You need the MP3s once: `pnpm example-calls:build` (ElevenLabs TTS + ffmpeg). Without them, the buttons return a clear error until you run that command.
+**Sample calls:** use the same SSE path as real calls. Build MP3s once with `pnpm example-calls:build`.
 
-**Live calls (deployed):** the voice service ships to Railway via [`apps/voice/Dockerfile`](apps/voice/Dockerfile) + [`railway.json`](railway.json); the web app stays on Vercel. In the Vercel project, set **Root Directory** to **`apps/web`** (see [`apps/web/vercel.json`](apps/web/vercel.json)); pointing at `apps/voice` or the repo root will not find Next.js. Walkthrough lives in [`apps/voice/README.md` § Deploy to Railway in 5 minutes](apps/voice/README.md#deploy-to-railway-in-5-minutes).
+**Live calls (deployed):** voice runs on Railway, web runs on Vercel (`apps/web` as Vercel root). Full steps: [`apps/voice/README.md`](apps/voice/README.md#deploy-to-railway-in-5-minutes).
 
-**Live calls (local):** set the same `LIVE_CALLS_PUSH_TOKEN` in `.env` for both processes, then expose the voice port over ngrok and point Twilio at it (URL changes every restart, so this is for spot-tests only):
+**Live calls (local):** set the same `LIVE_CALLS_PUSH_TOKEN` in both processes, expose `:8788` with ngrok, point Twilio at `/twilio/voice`:
 
 ```bash
 ngrok http 8788
@@ -144,15 +142,15 @@ pnpm example-calls:build           # ElevenLabs TTS + ffmpeg → apps/web/public
 | `DEMO_PASSWORD`         | Password gate.                                                                   |
 | `DEMO_COOKIE_SECRET`    | HMAC for the gate cookie. Any 32+ byte string.                                   |
 | `TWILIO_PHONE_NUMBER`   | The number rendered on the homepage. Cosmetic if `apps/voice/` isn't deployed.   |
-| `LIVE_CALLS_PUSH_TOKEN` | Bearer token that gates `/api/calls/live/push`. The voice agent sends it.        |
+| `LIVE_CALLS_PUSH_TOKEN` | Bearer token for `/api/calls/live/push`. Required for public/prod deployments.    |
 | `ANTHROPIC_API_KEY`     | `apps/voice/` only — Claude Sonnet 4.5 powers the per-turn decision.             |
 | `DEEPGRAM_API_KEY`      | `apps/voice/` only — streaming STT.                                              |
 | `ELEVENLABS_API_KEY`    | `apps/voice/` only — streaming TTS for the live agent.                           |
 | `ELEVENLABS_VOICE_ID`   | `apps/voice/` only — paid-tier voice id.                                         |
-| `TWILIO_ACCOUNT_SID`    | `apps/voice/` only — needed when the agent dials out / verifies signatures.      |
-| `TWILIO_AUTH_TOKEN`     | `apps/voice/` only.                                                              |
+| `TWILIO_ACCOUNT_SID`    | `apps/voice/` only — Twilio account identifier (for future outbound flows).       |
+| `TWILIO_AUTH_TOKEN`     | `apps/voice/` only — required in production to verify Twilio webhook signatures.  |
 | `DATABASE_URL`          | Postgres after `pnpm db:migrate`.                                                |
-| `PII_ENCRYPTION_KEY`    | Required by `@pulse/schema` for `pnpm db:migrate` / clients.                     |
+| `PII_ENCRYPTION_KEY`    | Reserved for encrypted PII maps; keep stable if you start writing encrypted rows. |
 | `PUBLIC_BASE_URL`       | Voice server URL Twilio reaches (defaults to `http://127.0.0.1:8788` for local). |
 | `WEB_BASE_URL`          | Next origin for transcript push (defaults to `http://127.0.0.1:3000`).           |
 
