@@ -30,7 +30,7 @@ Latest sweep: 2026-04-23, on `localhost:3000` running this commit.
 - [x] **Existing transport tests pass.** `apps/web/tests/{live-calls,api-live-push,api-example}.test.ts` — 11 tests, green.
 - [x] **Voice container builds and boots.** `docker build -f apps/voice/Dockerfile -t pulse-voice:test .` succeeds; container exits cleanly on missing required env (validation works).
 - [ ] **Safari iOS at 375px and Chrome Android at 412px.** Pending: open the deployed URL on each, tap both samples, confirm `tel:` opens the dial sheet on iOS, confirm SSE stays connected after backgrounding the tab for 30s. Note any drift back here.
-- [ ] **Live Twilio dial against the deployed Railway service.** Pending: dial `+1 (575) 221-8619`, run an order through, hang up, confirm transcript on the deployed homepage. After ~10 calls, fill the latency table in [`apps/voice/README.md`](../apps/voice/README.md#latency).
+- [ ] **Live Twilio dial against the deployed Railway service.** Blocked until **PSTN outbound audio** is fixed (transcript works; handset silence — see [`docs/HANDOFF.md` § PSTN outbound audio](HANDOFF.md#pstn-outbound-audio-open-issue--apr-2026)). Then: dial `+1 (575) 221-8619`, confirm you **hear** the agent, fill the latency table in [`apps/voice/README.md`](../apps/voice/README.md#latency).
 
 ## Run locally
 

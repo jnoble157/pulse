@@ -6,6 +6,8 @@ Pulse is a single-page demo that puts a real working voice agent in front of a v
 
 **Status:** Pivoted to a voice-agent-first demo on 2026-04-23. The previous analytics surface (operator brief, dashboard depth at `/internals/*`, extraction + insights pipelines, eval harness) was removed from the repo. See [ADR-038](docs/DECISIONS.md#adr-038--pivot-to-a-voice-agent-demo-remove-the-analytics-surface) for the why and [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
 
+**Known gap:** Live **transcript over SSE works** for real Twilio calls; **handset audio outbound** (ElevenLabs → Twilio Media Stream) is still under investigation — see [HANDOFF § PSTN outbound audio](docs/HANDOFF.md#pstn-outbound-audio-open-issue--apr-2026).
+
 ## Why this shape
 
 A dashboard built on synthetic calls asks the visitor to trust aggregates they cannot verify. A **phone number that answers**, or **audio samples** you can play in a few seconds, does not. The test for this demo is simple: open the URL, play a sample (normal order), play another (allergy edge case), or dial the number and try it yourself.

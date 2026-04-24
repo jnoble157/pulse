@@ -67,9 +67,9 @@ Violating one of these is a blocker, not a preference. Don't.
 
 ### Change the live agent's behavior
 
-1. Read [`apps/voice/README.md`](apps/voice/README.md) first. The agent is not a single LLM call — it's a per-turn loop with a discriminated tool union (`apps/voice/src/brain/tools.ts`).
+1. Read [`apps/voice/README.md`](apps/voice/README.md) and [`docs/HANDOFF.md`](docs/HANDOFF.md) (§PSTN outbound audio if you touch TTS/Twilio). The agent is a per-turn loop: `decide()` returns one `AgentTurn` validated by `AgentTurnSchema` in `apps/voice/src/brain/tools.ts`.
 2. The system prompt lives in `apps/voice/src/brain/prompt.ts`. Edit it inline (this surface isn't using the deleted versioned-prompts package). Keep changes small; this prompt is paged into Claude on every turn.
-3. Add or modify a tool in `brain/tools.ts`. Keep `AgentTurnSchema` exhaustive — every branch of the union must be handled in `applyTool`.
+3. Add or modify a tool in `brain/tools.ts`. `AgentTurnSchema` is a **single `z.object` + `superRefine`** (Anthropic forbids top-level `anyOf`/`oneOf` on tool `input_schema`). Keep `applyTool` exhaustive for every `action` value.
 4. Test by dialing the live agent or, for tooling-only changes, by running `pnpm dev` in `apps/voice` and POSTing a synthetic transcript to a local fixture (no harness exists yet; if you build one, see ADR-038's "Cons" — that's the gap).
 
 ### Add a transport event type

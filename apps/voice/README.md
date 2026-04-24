@@ -160,6 +160,7 @@ Publish the actual figures here, do not invent them:
 
 ## What's missing / next
 
+- **PSTN audio (blocking demo):** Caller hears silence while the web transcript updates. See [`docs/HANDOFF.md` § PSTN outbound audio](../../docs/HANDOFF.md#pstn-outbound-audio-open-issue--apr-2026) for symptoms, what was tried, and a ordered debug list (ElevenLabs proof → Twilio send → format A/B).
 - **Square POS:** `add_to_cart` is in-memory; wire Square in `brain/tools.ts` when needed.
 - **Transfer:** `transfer_to_staff` does not dial a human yet.
 - **Recording:** no full-call recording to S3.
