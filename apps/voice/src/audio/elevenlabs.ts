@@ -34,6 +34,22 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
   const ws = new WebSocket(url, { headers: { 'xi-api-key': opts.apiKey } });
   let cancelled = false;
   let firstChunkSeen = false;
+  let loggedNonJson = false;
+  let loggedServerMessage = false;
+  let loggedFirstChunkBytes = false;
+  let settled = false;
+
+  const finishDone = () => {
+    if (settled) return;
+    settled = true;
+    opts.onDone?.();
+  };
+
+  const finishError = (err: Error) => {
+    if (settled) return;
+    settled = true;
+    opts.onError?.(err);
+  };
 
   ws.on('open', () => {
     if (cancelled) return ws.close();
@@ -63,15 +79,37 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 
   ws.on('message', (data) => {
     if (cancelled) return;
-    let json: { audio?: string; isFinal?: boolean } | null = null;
+    const raw = data.toString();
+    let json: { audio?: string; isFinal?: boolean; error?: unknown; message?: unknown } | null = null;
     try {
-      json = JSON.parse(data.toString());
+      json = JSON.parse(raw);
     } catch {
+      if (!loggedNonJson) {
+        loggedNonJson = true;
+        console.warn(`[voice] elevenlabs non-json message: ${raw.slice(0, 240)}`);
+      }
+      return;
+    }
+    if (!loggedServerMessage && (json?.error != null || json?.message != null)) {
+      loggedServerMessage = true;
+      console.warn(
+        `[voice] elevenlabs message error=${JSON.stringify(json.error ?? null)} message=${JSON.stringify(
+          json.message ?? null,
+        )}`,
+      );
+    }
+    if (json?.error != null) {
+      finishError(new Error(`ElevenLabs error: ${JSON.stringify(json.error)}`));
+      ws.close();
       return;
     }
     if (json?.audio) {
       const mulaw = Buffer.from(json.audio, 'base64');
       if (mulaw.length > 0) {
+        if (!loggedFirstChunkBytes) {
+          loggedFirstChunkBytes = true;
+          console.info(`[voice] elevenlabs first audio chunk bytes=${mulaw.length}`);
+        }
         if (!firstChunkSeen) {
           firstChunkSeen = true;
           opts.onFirstChunk?.();
@@ -80,12 +118,20 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
       }
     }
     if (json?.isFinal) {
-      opts.onDone?.();
+      finishDone();
       ws.close();
     }
   });
 
-  ws.on('error', (err) => opts.onError?.(err));
+  ws.on('error', (err) => finishError(err));
+  ws.on('close', (code, reason) => {
+    if (!cancelled && !firstChunkSeen && !settled) {
+      console.warn(
+        `[voice] elevenlabs ws closed before audio code=${code} reason=${reason.toString('utf8').slice(0, 240)}`,
+      );
+      finishError(new Error(`ElevenLabs closed before audio (code=${code})`));
+    }
+  });
 
   return {
     cancel: () => {

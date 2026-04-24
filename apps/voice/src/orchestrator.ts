@@ -295,6 +295,7 @@ export class Orchestrator {
       let ttsFirstChunkMs: number | null = null;
       let firstTwilioFrameSent = false;
       let sentFrames = 0;
+      console.info(`[voice] speak start chars=${text.length} twilio_ready_state=${this.twilioWs.readyState}`);
       const handle = streamTts({
         apiKey: this.env.ELEVENLABS_API_KEY,
         voiceId: this.env.ELEVENLABS_VOICE_ID,
@@ -311,6 +312,7 @@ export class Orchestrator {
           }
         },
         onChunk: (muLaw8) => {
+          console.info(`[voice] tts chunk bytes=${muLaw8.length}`);
           for (let o = 0; o < muLaw8.length; o += TWILIO_MULAW_FRAME_BYTES) {
             const slice = muLaw8.subarray(o, o + TWILIO_MULAW_FRAME_BYTES);
             try {
@@ -336,6 +338,7 @@ export class Orchestrator {
         },
         onDone: () => {
           void (async () => {
+            console.info(`[voice] tts done sent_frames=${sentFrames}`);
             if (opts.waitForPlayback && sentFrames > 0) {
               await this.waitForPlaybackMark(
                 `tts-${Date.now()}-${Math.random().toString(36).slice(2)}`,
