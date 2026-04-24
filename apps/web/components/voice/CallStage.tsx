@@ -105,6 +105,10 @@ export function CallStage({ phoneNumber }: Props) {
           return {
             ...prev,
             [ev.call_id]: {
+              // Spread `existing` first so any out-of-order events that
+              // raced ahead of call.started (cart.snapshot, turn.appended,
+              // even an early call.ended) survive the merge.
+              ...(existing ?? {}),
               call_id: ev.call_id,
               source: ev.source,
               caller_label: ev.caller_label ?? existing?.caller_label ?? null,

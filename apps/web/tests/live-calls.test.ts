@@ -231,6 +231,32 @@ describe('LiveCallStore', () => {
     expect(snap.cart?.subtotal_cents).toBe(300);
   });
 
+  test('cart.snapshot before call.started is preserved when call.started arrives', () => {
+    // Producer queues `call.started` then `cart.snapshot`, but the two HTTP
+    // POSTs from the voice agent can land out of order at the push route.
+    store.emitCallEvent({
+      kind: 'cart.snapshot',
+      call_id: 'c1',
+      items: [{ menu_item_id: 'a', name: 'A', qty: 1, modifiers: [], unit_price_cents: 100 }],
+      subtotal_cents: 100,
+      t_ms: 50,
+    });
+    // Stub created so the cart isn't dropped.
+    expect(store.snapshotCalls()[0].cart?.subtotal_cents).toBe(100);
+
+    store.emitCallEvent({
+      kind: 'call.started',
+      call_id: 'c1',
+      started_at: 1234,
+      source: 'twilio',
+      caller_label: 'Inbound · +15555550100',
+    });
+    const snap = store.snapshotCalls()[0];
+    expect(snap.cart?.items.map((i) => i.name)).toEqual(['A']);
+    expect(snap.started_at).toBe(1234);
+    expect(snap.caller_label).toBe('Inbound · +15555550100');
+  });
+
   test('call.ended for a call that never existed is still ignored', () => {
     store.emitCallEvent({
       kind: 'call.ended',
