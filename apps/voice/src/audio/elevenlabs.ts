@@ -80,7 +80,8 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
   ws.on('message', (data) => {
     if (cancelled) return;
     const raw = data.toString();
-    let json: { audio?: string; isFinal?: boolean; error?: unknown; message?: unknown } | null = null;
+    let json: { audio?: string; isFinal?: boolean; error?: unknown; message?: unknown } | null =
+      null;
     try {
       json = JSON.parse(raw);
     } catch {

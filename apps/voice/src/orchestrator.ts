@@ -42,6 +42,7 @@ import type { VoiceEnv } from './env.js';
 /** Twilio 8kHz μ-law media frames are ~20ms (160 samples → 160 bytes). */
 const TWILIO_MULAW_FRAME_BYTES = 160;
 const TWILIO_PLAYBACK_MARK_TIMEOUT_MS = 8_000;
+const MAX_DECIDE_TOOL_STEPS = 8;
 
 export type TenantContext = {
   tenantId: string;
@@ -197,13 +198,15 @@ export class Orchestrator {
     this.deciding = true;
     try {
       let obs: ToolResult | undefined = observation;
+      let spokeThisLoop = false;
       // Each tool call feeds back into a follow-up decision; cap at 4 to
       // avoid a runaway loop on a confused turn.
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < MAX_DECIDE_TOOL_STEPS; i++) {
         if (this.session.terminal) break;
         const decideStart = performance.now();
         const turn = await decide(this.session, this.env, obs);
         const decideMs = performance.now() - decideStart;
+        console.info(`[voice] decide step=${i + 1} action=${turn.action}`);
 
         if (turn.action === 'say') {
           const reply = turn.text ?? '';
@@ -220,6 +223,7 @@ export class Orchestrator {
           });
           const shouldEnd = shouldAutoEndAfterSay(reply, this.session);
           await this.speak(reply, decideMs, { waitForPlayback: shouldEnd });
+          spokeThisLoop = true;
           if (shouldEnd && this.session && !this.session.terminal) {
             this.session.terminal = { kind: 'ended', reason: 'completed_order' };
           }
@@ -252,8 +256,39 @@ export class Orchestrator {
         }
         obs = result ?? undefined;
       }
+      if (!this.session.terminal && !spokeThisLoop) {
+        const fallback = recoveryLine(this.session);
+        console.warn('[voice] decide loop produced no spoken reply; sending recovery line');
+        this.session.appendTurn(
+          'agent',
+          fallback,
+          Math.round(this.session.now()),
+          Math.round(this.session.now()),
+        );
+        this.livePush.emit({
+          kind: 'turn.appended',
+          call_id: this.session.callId,
+          turn: { speaker: 'agent', text: fallback, t_ms: Date.now() - this.callStartMs },
+        });
+        await this.speak(fallback, 0);
+      }
     } catch (err) {
       console.warn('[voice] decide loop failed:', (err as Error).message);
+      if (this.session && !this.session.terminal) {
+        const fallback = "Sorry, I didn't catch that. Could you repeat that once?";
+        this.session.appendTurn(
+          'agent',
+          fallback,
+          Math.round(this.session.now()),
+          Math.round(this.session.now()),
+        );
+        this.livePush.emit({
+          kind: 'turn.appended',
+          call_id: this.session.callId,
+          turn: { speaker: 'agent', text: fallback, t_ms: Date.now() - this.callStartMs },
+        });
+        await this.speak(fallback, 0);
+      }
     } finally {
       this.deciding = false;
       if (this.pendingDecide) {
@@ -295,7 +330,9 @@ export class Orchestrator {
       let ttsFirstChunkMs: number | null = null;
       let firstTwilioFrameSent = false;
       let sentFrames = 0;
-      console.info(`[voice] speak start chars=${text.length} twilio_ready_state=${this.twilioWs.readyState}`);
+      console.info(
+        `[voice] speak start chars=${text.length} twilio_ready_state=${this.twilioWs.readyState}`,
+      );
       const handle = streamTts({
         apiKey: this.env.ELEVENLABS_API_KEY,
         voiceId: this.env.ELEVENLABS_VOICE_ID,
@@ -427,6 +464,11 @@ export class Orchestrator {
       /* ignore */
     }
   }
+}
+
+function recoveryLine(session: CallSession): string {
+  if (session.cart.length > 0) return 'Got it. Do you want anything else with that order?';
+  return "Sorry, I didn't catch that. Could you repeat that once?";
 }
 
 /** Quantile of a numeric sample. q in [0,1]. Returns null on empty input. */
