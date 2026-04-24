@@ -3,10 +3,10 @@
  *
  * Routes:
  *   - GET  /health                — liveness (always binds TCP); `ready` when DB tenant loaded
- *   - GET|POST /twilio/voice      — Twilio webhook on incoming call. Returns
+ *   - GET|POST /twilio/voice(/)   — Twilio webhook (Twilio may POST with a trailing slash). Returns
  *                                   TwiML that opens a Media Stream against
  *                                   wss://<PUBLIC_BASE_URL>/twilio/media.
- *   - WS   /twilio/media          — Twilio Programmable Voice Media Stream.
+ *   - WS   /twilio/media(/)       — Twilio Programmable Voice Media Stream.
  *                                   Bridged into Orchestrator.
  *
  * Twilio dials our `/twilio/voice` webhook synchronously; we respond with
@@ -142,22 +142,23 @@ export async function startServer() {
     c.header('content-type', 'text/xml');
     return c.body(twiml);
   };
-  app.get('/twilio/voice', serveTwilioVoice);
-  app.post('/twilio/voice', serveTwilioVoice);
+  for (const path of ['/twilio/voice', '/twilio/voice/'] as const) {
+    app.get(path, serveTwilioVoice);
+    app.post(path, serveTwilioVoice);
+  }
 
-  app.get(
-    '/twilio/media',
-    upgradeWebSocket(() => ({
-      onOpen(_evt, ws) {
-        if (!tenant) {
-          console.warn('[voice] media socket opened before tenant ready; closing');
-          ws.close();
-          return;
-        }
-        new Orchestrator(ws.raw as unknown as WsWebSocket, tenant, e);
-      },
-    })),
-  );
+  const twilioMediaUpgrade = upgradeWebSocket(() => ({
+    onOpen(_evt, ws) {
+      if (!tenant) {
+        console.warn('[voice] media socket opened before tenant ready; closing');
+        ws.close();
+        return;
+      }
+      new Orchestrator(ws.raw as unknown as WsWebSocket, tenant, e);
+    },
+  }));
+  app.get('/twilio/media', twilioMediaUpgrade);
+  app.get('/twilio/media/', twilioMediaUpgrade);
 
   const server = serve({ fetch: app.fetch, port: e.PORT }, (info) => {
     console.info(`[voice] listening on :${info.port} (public ${publicBase})`);
