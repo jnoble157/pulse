@@ -37,7 +37,8 @@ export type TwilioStartMeta = {
 };
 
 export type TwilioMediaPayload = {
-  track: 'inbound' | 'outbound';
+  /** Twilio usually sends `inbound`; omit on some frames — treat as inbound. */
+  track?: 'inbound' | 'outbound';
   chunk: string;
   timestamp: string;
   payload: string;

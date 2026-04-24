@@ -3,7 +3,7 @@
  *
  * Routes:
  *   - GET  /health                — liveness (always binds TCP); `ready` when DB tenant loaded
- *   - POST /twilio/voice          — Twilio webhook on incoming call. Returns
+ *   - GET|POST /twilio/voice      — Twilio webhook on incoming call. Returns
  *                                   TwiML that opens a Media Stream against
  *                                   wss://<PUBLIC_BASE_URL>/twilio/media.
  *   - WS   /twilio/media          — Twilio Programmable Voice Media Stream.
@@ -19,6 +19,7 @@
  * tenant row exists or a timeout elapses.
  */
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
 import type { WebSocket as WsWebSocket } from 'ws';
@@ -96,10 +97,7 @@ export async function startServer() {
         database: dbName ?? undefined,
         hint: 'Fix DATABASE_URL / run pnpm db:migrate && pnpm seed:voice against this database',
       };
-      if (
-        dbName === 'postgres' &&
-        /relation ["']?tenants["']? does not exist/i.test(tenantError)
-      ) {
+      if (dbName === 'postgres' && /relation ["']?tenants["']? does not exist/i.test(tenantError)) {
         body.railway_hint =
           'Railway Postgres often has two logical DBs: `postgres` (empty) and `railway` (where plugins put data). Point DATABASE_URL at …/railway, redeploy, then re-run migrate+seed if needed.';
       }
@@ -123,7 +121,8 @@ export async function startServer() {
     return c.json({ ok: true, ready: true, tenant: tenant.tenantSlug }, 200);
   });
 
-  app.post('/twilio/voice', (c) => {
+  const publicBase = e.PUBLIC_BASE_URL.replace(/\/+$/, '');
+  const serveTwilioVoice = (c: Context) => {
     if (!tenant) {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -132,16 +131,19 @@ export async function startServer() {
       c.header('content-type', 'text/xml');
       return c.body(twiml);
     }
-    const wsUrl = `${e.PUBLIC_BASE_URL.replace(/^http/, 'ws')}/twilio/media`;
+    const wsUrl = `${publicBase.replace(/^http/, 'ws')}/twilio/media`;
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${escapeXml(wsUrl)}" />
   </Connect>
 </Response>`;
+    console.info(`[voice] /twilio/voice ${c.req.method} stream=${wsUrl}`);
     c.header('content-type', 'text/xml');
     return c.body(twiml);
-  });
+  };
+  app.get('/twilio/voice', serveTwilioVoice);
+  app.post('/twilio/voice', serveTwilioVoice);
 
   app.get(
     '/twilio/media',
@@ -158,7 +160,7 @@ export async function startServer() {
   );
 
   const server = serve({ fetch: app.fetch, port: e.PORT }, (info) => {
-    console.info(`[voice] listening on :${info.port} (public ${e.PUBLIC_BASE_URL})`);
+    console.info(`[voice] listening on :${info.port} (public ${publicBase})`);
   });
   injectWebSocket(server);
 }

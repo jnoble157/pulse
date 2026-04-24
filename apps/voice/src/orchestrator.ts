@@ -117,7 +117,8 @@ export class Orchestrator {
 
   private handleMedia(frame: Extract<TwilioInbound, { event: 'media' }>): void {
     if (!this.deepgram) return;
-    if (frame.media.track !== 'inbound') return;
+    const tr = frame.media.track;
+    if (tr === 'outbound') return;
     const mu = Buffer.from(frame.media.payload, 'base64');
     const pcm8 = muLawToPcm16(mu);
     const pcm16 = upsample8to16(pcm8);
