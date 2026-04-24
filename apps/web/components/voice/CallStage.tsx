@@ -456,10 +456,17 @@ function findCallerName(call: LiveCall): string | null {
 function extractNameFragment(text: string): string {
   const lower = text.toLowerCase();
   const andPhoneIdx = lower.indexOf('and the phone');
-  if (andPhoneIdx > 0) return text.slice(0, andPhoneIdx);
-  const phoneIdx = lower.indexOf('phone number');
-  if (phoneIdx > 0) return text.slice(0, phoneIdx);
-  return text;
+  const beforePhone =
+    andPhoneIdx > 0
+      ? text.slice(0, andPhoneIdx)
+      : (() => {
+          const phoneIdx = lower.indexOf('phone number');
+          if (phoneIdx > 0) return text.slice(0, phoneIdx);
+          return text;
+        })();
+  return beforePhone
+    .replace(/[,:-]?\s*(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\s*$/g, '')
+    .trim();
 }
 
 function cleanCallerName(text: string): string {
@@ -737,6 +744,7 @@ function TurnRow({ turn }: { turn: TranscriptTurn }) {
 }
 
 function ActionChip({ action }: { action: NonNullable<TranscriptTurn['action']> }) {
+  if (action.kind === 'end_call') return null;
   const label =
     action.kind === 'add_to_cart'
       ? `Added to order: ${action.qty}× ${action.item}`

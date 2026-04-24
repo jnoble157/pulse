@@ -118,6 +118,14 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
       const qty = turn.quantity!;
       const item = session.menu.find((m) => m.id === menuItemId);
       if (!item) return { kind: 'cart_error', reason: `unknown menu_item_id ${menuItemId}` };
+      const latestCallerText =
+        [...session.turns].reverse().find((existingTurn) => existingTurn.speaker === 'caller')
+          ?.text ?? '';
+      if (isCompletionUtterance(latestCallerText)) {
+        const existing = session.cart.find((cartItem) => cartItem.menu_item_id === item.id);
+        if (existing)
+          return { kind: 'cart_error', reason: 'duplicate_add_after_completion_signal' };
+      }
       if (requiresPizzaSizeClarification(session, item.name)) {
         return { kind: 'cart_error', reason: 'size_required_for_pizza_order' };
       }
@@ -172,4 +180,11 @@ function normalizedPizzaName(name: string): string | null {
 
 function mentionsSize(text: string): boolean {
   return /\b(extra\s+large|xl|large|medium|small|personal|family|slice)\b/i.test(text);
+}
+
+function isCompletionUtterance(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return /\b(that'?s it|thats it|all set|that is all|nothing else|nope that'?s it)\b/.test(
+    normalized,
+  );
 }
