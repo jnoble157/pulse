@@ -118,6 +118,9 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
       const qty = turn.quantity!;
       const item = session.menu.find((m) => m.id === menuItemId);
       if (!item) return { kind: 'cart_error', reason: `unknown menu_item_id ${menuItemId}` };
+      if (requiresPizzaSizeClarification(session, item.name)) {
+        return { kind: 'cart_error', reason: 'size_required_for_pizza_order' };
+      }
       session.cart.push({
         menu_item_id: item.id,
         item_name_spoken: item.name,
@@ -145,4 +148,28 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
       return { kind: 'ended', reason: r };
     }
   }
+}
+
+function requiresPizzaSizeClarification(session: CallSession, itemName: string): boolean {
+  if (!/\bpizza\b/i.test(itemName)) return false;
+  const latestCallerText =
+    [...session.turns].reverse().find((turn) => turn.speaker === 'caller')?.text ?? '';
+  if (mentionsSize(latestCallerText)) return false;
+  const family = normalizedPizzaName(itemName);
+  if (!family) return false;
+  const sameFamilyCount = session.menu.filter((m) => normalizedPizzaName(m.name) === family).length;
+  return sameFamilyCount > 1;
+}
+
+function normalizedPizzaName(name: string): string | null {
+  if (!/\bpizza\b/i.test(name)) return null;
+  return name
+    .toLowerCase()
+    .replace(/\b(extra\s+large|xl|large|medium|small|personal|family|slice)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mentionsSize(text: string): boolean {
+  return /\b(extra\s+large|xl|large|medium|small|personal|family|slice)\b/i.test(text);
 }

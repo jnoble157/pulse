@@ -245,7 +245,10 @@ export class Orchestrator {
           });
         }
         if (this.session.terminal) {
-          const line = turn.text?.trim() || closingLine(this.session.terminal);
+          const line = withOrderTotal(
+            this.session,
+            turn.text?.trim() || closingLine(this.session.terminal),
+          );
           this.livePush.emit({
             kind: 'turn.appended',
             call_id: this.session.callId,
@@ -554,6 +557,7 @@ function liveActionFor(
 function shouldAutoEndAfterSay(text: string, session: CallSession): boolean {
   if (session.terminal || session.cart.length === 0) return false;
   const normalized = text.toLowerCase();
+  if (!/(\$\s?\d+(\.\d{2})?)|total\b/.test(text)) return false;
   if (/[?]/.test(text)) return false;
   if (/\b(anything else|what else|can i get|would you like|do you want)\b/.test(normalized)) {
     return false;
@@ -566,4 +570,15 @@ function shouldAutoEndAfterSay(text: string, session: CallSession): boolean {
 function closingLine(terminal: { kind: 'transferred' | 'ended'; reason: string }): string {
   if (terminal.kind === 'transferred') return "One sec, I'm transferring you to a person.";
   return 'Thanks for calling. Have a good one.';
+}
+
+function withOrderTotal(session: CallSession, line: string): string {
+  if (session.cart.length === 0) return line;
+  if (/(\$\s?\d+(\.\d{2})?)|total\b/i.test(line)) return line;
+  const totalCents = session.cart.reduce(
+    (sum, item) => sum + (item.unit_price_cents ?? 0) * item.quantity,
+    0,
+  );
+  if (!Number.isFinite(totalCents) || totalCents <= 0) return line;
+  return `${line} Your total is $${(totalCents / 100).toFixed(2)}.`;
 }

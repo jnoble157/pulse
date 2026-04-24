@@ -42,6 +42,7 @@ export class LivePushClient {
   private readonly endpoint: string | null;
   private readonly token: string | null;
   private warned = false;
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(opts: { baseUrl?: string; token?: string }) {
     this.endpoint = opts.baseUrl ? `${opts.baseUrl.replace(/\/$/, '')}/api/calls/live/push` : null;
@@ -62,7 +63,8 @@ export class LivePushClient {
       }
       return;
     }
-    void this.send(event);
+    // Keep per-call event ordering stable (e.g. final turn before call.ended).
+    this.queue = this.queue.then(() => this.send(event)).catch(() => undefined);
   }
 
   private async send(event: LiveEvent): Promise<void> {

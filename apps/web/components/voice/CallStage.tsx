@@ -447,11 +447,19 @@ function findCallerName(call: LiveCall): string | null {
     if (prev.speaker !== 'agent' || cur.speaker !== 'caller') continue;
     const prompt = prev.text.toLowerCase();
     if (!prompt.includes('name')) continue;
-    if (phoneDigits(cur.text).length >= 7) continue;
-    const cleaned = cleanCallerName(cur.text);
+    const cleaned = cleanCallerName(extractNameFragment(cur.text));
     return cleaned || null;
   }
   return null;
+}
+
+function extractNameFragment(text: string): string {
+  const lower = text.toLowerCase();
+  const andPhoneIdx = lower.indexOf('and the phone');
+  if (andPhoneIdx > 0) return text.slice(0, andPhoneIdx);
+  const phoneIdx = lower.indexOf('phone number');
+  if (phoneIdx > 0) return text.slice(0, phoneIdx);
+  return text;
 }
 
 function cleanCallerName(text: string): string {
