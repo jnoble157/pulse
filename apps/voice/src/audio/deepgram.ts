@@ -6,6 +6,10 @@
  *   - `interim_results=true` so we can detect the caller starting to speak
  *     mid-agent-turn (barge-in trigger).
  *   - `endpointing=350` to reduce caller cutoffs on brief pauses.
+ *   - `utterance_end_ms=1000` + `vad_events=true` so the server fires
+ *     `UtteranceEnd` after a real silence — used as a safety net when
+ *     endpointing fails to emit a final for a short utterance (e.g. the
+ *     very first reply after the greeting).
  *   - `smart_format=true` for punctuation + numerals.
  *   - `keyterm` boosted with the tenant menu for accuracy on item names.
  *
@@ -26,6 +30,7 @@ export type DeepgramOptions = {
   language?: string;
   keyterms?: string[];
   onTranscript: (t: DeepgramTranscript) => void;
+  onUtteranceEnd?: () => void;
   onError?: (err: Error) => void;
   onClose?: () => void;
 };
@@ -43,6 +48,8 @@ export class DeepgramSession {
     url.searchParams.set('channels', '1');
     url.searchParams.set('interim_results', 'true');
     url.searchParams.set('endpointing', '350');
+    url.searchParams.set('utterance_end_ms', '1000');
+    url.searchParams.set('vad_events', 'true');
     url.searchParams.set('smart_format', 'true');
     url.searchParams.set('language', opts.language ?? 'en-US');
     for (const k of opts.keyterms ?? []) url.searchParams.append('keyterm', k);
@@ -64,6 +71,10 @@ export class DeepgramSession {
         return;
       }
       const t = json as DeepgramTranscript & { type?: string };
+      if (t.type === 'UtteranceEnd') {
+        opts.onUtteranceEnd?.();
+        return;
+      }
       if (t.type !== 'Results') return;
       opts.onTranscript(t);
     });

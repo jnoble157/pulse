@@ -6,6 +6,8 @@
  *   1. Twilio `start`        → open Deepgram WS, build CallSession
  *   2. Twilio `media`        → μ-law decode → upsample → Deepgram
  *   3. Deepgram `is_final`   → append turn → call decide()
+ *      (also `UtteranceEnd`  → if there is an un-finalized interim, treat
+ *      that as the final turn — see `handleUtteranceEnd`.)
  *   4. decide() returns      → if `say`, stream TTS to Twilio; else apply
  *                              tool, append a tool-result turn, decide again
  *   5. Twilio `stop`         → flush, close, POST IngestCallEvent
@@ -68,6 +70,13 @@ export class Orchestrator {
   private readonly livePush: LivePushClient;
   private callerNumber: string | null = null;
   private lastFinalTranscriptSig: string | null = null;
+  /**
+   * Latest non-empty interim transcript. We hold onto it so that when
+   * Deepgram fires an `UtteranceEnd` event without a corresponding
+   * `is_final` (which happens for short utterances right after the agent
+   * stops speaking), we can still process the caller's words.
+   */
+  private currentInterim: { text: string; startSec: number; durationSec: number } | null = null;
 
   constructor(
     private readonly twilioWs: WsWebSocket,
@@ -122,6 +131,7 @@ export class Orchestrator {
       apiKey: this.env.DEEPGRAM_API_KEY,
       keyterms: this.tenant.menu.slice(0, 32).map((m) => m.name),
       onTranscript: (t) => this.handleTranscript(t),
+      onUtteranceEnd: () => this.handleUtteranceEnd(),
       onError: (err) => console.warn('[voice] deepgram error:', err.message),
     });
 
@@ -155,15 +165,42 @@ export class Orchestrator {
     duration: number;
   }): void {
     const text = t.channel.alternatives[0]?.transcript?.trim() ?? '';
-    if (!text) return;
+    if (!text) {
+      // An empty interim usually means VAD reset; clear the cached interim
+      // so a stale value can't get force-finalized on a later UtteranceEnd.
+      if (!t.is_final) this.currentInterim = null;
+      return;
+    }
     if (!t.is_final) {
+      this.currentInterim = { text, startSec: t.start, durationSec: t.duration };
       if (this.speaking && text.length >= 2 && this.greetingDone) this.bargeIn();
       return;
     }
-    if (!this.session) return;
+    this.currentInterim = null;
+    this.processCallerFinal(text, t.start, t.duration);
+  }
 
-    const startMs = Math.round(t.start * 1000);
-    const endMs = startMs + Math.round(t.duration * 1000);
+  /**
+   * Deepgram `UtteranceEnd` safety net.
+   *
+   * Endpointing alone occasionally fails to fire a final for a brief reply
+   * delivered right after the agent finishes speaking (the caller's first
+   * sentence post-greeting is the worst offender). When that happens we
+   * still get an `UtteranceEnd` after `utterance_end_ms` of silence, so
+   * promote the most recent interim to a final on the spot.
+   */
+  private handleUtteranceEnd(): void {
+    const interim = this.currentInterim;
+    if (!interim) return;
+    this.currentInterim = null;
+    console.info(`[voice] utterance_end fallback for "${interim.text.slice(0, 60)}"`);
+    this.processCallerFinal(interim.text, interim.startSec, interim.durationSec);
+  }
+
+  private processCallerFinal(text: string, startSec: number, durationSec: number): void {
+    if (!this.session) return;
+    const startMs = Math.round(startSec * 1000);
+    const endMs = startMs + Math.round(durationSec * 1000);
     const sig = `${startMs}:${endMs}:${text.toLowerCase()}`;
     if (sig === this.lastFinalTranscriptSig) return;
     this.lastFinalTranscriptSig = sig;
@@ -368,7 +405,12 @@ export class Orchestrator {
       turn: { speaker: 'agent', text, t_ms: 0 },
     });
     try {
-      await this.speak(text, 0, { waitForPlayback: true });
+      // Don't waitForPlayback here. Twilio's mark round-trip can take
+      // several seconds; while we wait, `greetingDone` stays false and
+      // barge-in is suppressed — so a caller talking right after the
+      // greeting can't interrupt and also competes with the still-pending
+      // greeting state. Resolve as soon as TTS finishes streaming.
+      await this.speak(text, 0);
     } finally {
       this.greetingDone = true;
     }
@@ -388,6 +430,11 @@ export class Orchestrator {
       let ttsFirstChunkMs: number | null = null;
       let firstTwilioFrameSent = false;
       let sentFrames = 0;
+      // Captured below so onDone/onError can tell whether `this.speaking`
+      // still belongs to *this* speak() call before clearing it. Without
+      // this, a late-resolving greeting (waitForPlayback) would null out a
+      // newer response's handle and break barge-in for the rest of the call.
+      let myHandle: { cancel: () => void } | null = null;
       console.info(
         `[voice] speak start chars=${text.length} twilio_ready_state=${this.twilioWs.readyState}`,
       );
@@ -440,8 +487,10 @@ export class Orchestrator {
                 sentFrames * 20,
               );
             }
-            this.speaking = null;
-            this.callerFinalAt = null;
+            if (this.speaking === myHandle) {
+              this.speaking = null;
+              this.callerFinalAt = null;
+            }
             console.info(
               `[voice] spoke ${text.length} chars in ${Math.round(performance.now() - startedAt)}ms`,
             );
@@ -464,10 +513,11 @@ export class Orchestrator {
               turn: { speaker: 'agent', text: fallback, t_ms: Date.now() - this.callStartMs },
             });
           }
-          this.speaking = null;
+          if (this.speaking === myHandle) this.speaking = null;
           resolve();
         },
       });
+      myHandle = handle;
       this.speaking = handle;
     });
   }
