@@ -307,8 +307,10 @@ export class Orchestrator {
       if (this.pendingDecide) {
         this.pendingDecide = false;
         void this.runDecideLoop();
-      } else if (this.session?.terminal?.kind === 'ended') {
-        await this.shutdown('agent_ended');
+      } else if (this.session?.terminal) {
+        await this.shutdown(
+          this.session.terminal.kind === 'transferred' ? 'agent_transferred' : 'agent_ended',
+        );
       }
     }
   }
@@ -469,7 +471,11 @@ export class Orchestrator {
       call_id: session.callId,
       ended_at: Date.now(),
       reason:
-        reason === 'twilio_stop' ? 'hangup' : reason === 'agent_ended' ? 'completed' : 'error',
+        reason === 'twilio_stop'
+          ? 'hangup'
+          : reason === 'agent_ended' || reason === 'agent_transferred'
+            ? 'completed'
+            : 'error',
     });
     try {
       this.twilioWs.close();

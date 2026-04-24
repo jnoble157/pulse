@@ -26,35 +26,82 @@ if (!DATABASE_URL) {
 
 const SLUG = process.env.PULSE_TENANT_SLUG ?? 'tonys-pizza-austin';
 
-/** Enough items for the agent prompt and common demo orders. */
+/** Simple demo menu: 3 pizza styles across 3 sizes. */
 const MENU_ITEMS: MenuItem[] = [
   {
-    id: 'item-pep-lg',
-    name: 'Large Pepperoni Pizza',
+    id: 'item-cheese-sm',
+    name: 'Small Cheese Pizza',
     category: 'Pizza',
-    description: 'Classic pepperoni, large',
-    price_cents: 1899,
+    description: 'Mozzarella + red sauce',
+    price_cents: 1299,
     allergens: ['dairy', 'gluten'],
   },
   {
     id: 'item-cheese-md',
     name: 'Medium Cheese Pizza',
     category: 'Pizza',
+    description: 'Mozzarella + red sauce',
     price_cents: 1499,
     allergens: ['dairy', 'gluten'],
   },
   {
-    id: 'item-caesar',
-    name: 'Caesar Salad',
-    category: 'Salads',
-    price_cents: 899,
-    allergens: ['dairy', 'gluten', 'fish'],
+    id: 'item-cheese-lg',
+    name: 'Large Cheese Pizza',
+    category: 'Pizza',
+    description: 'Mozzarella + red sauce',
+    price_cents: 1699,
+    allergens: ['dairy', 'gluten'],
   },
   {
-    id: 'item-soda',
-    name: 'Fountain Drink',
-    category: 'Drinks',
-    price_cents: 249,
+    id: 'item-pepperoni-sm',
+    name: 'Small Pepperoni Pizza',
+    category: 'Pizza',
+    description: 'Pepperoni + mozzarella + red sauce',
+    price_cents: 1399,
+    allergens: ['dairy', 'gluten'],
+    aliases: ['pep pizza'],
+  },
+  {
+    id: 'item-pepperoni-md',
+    name: 'Medium Pepperoni Pizza',
+    category: 'Pizza',
+    description: 'Pepperoni + mozzarella + red sauce',
+    price_cents: 1599,
+    allergens: ['dairy', 'gluten'],
+    aliases: ['pep pizza'],
+  },
+  {
+    id: 'item-pepperoni-lg',
+    name: 'Large Pepperoni Pizza',
+    category: 'Pizza',
+    description: 'Pepperoni + mozzarella + red sauce',
+    price_cents: 1799,
+    allergens: ['dairy', 'gluten'],
+    aliases: ['pep pizza'],
+  },
+  {
+    id: 'item-veggie-sm',
+    name: 'Small Veggie Pizza',
+    category: 'Pizza',
+    description: 'Bell pepper, onion, mushroom, olive',
+    price_cents: 1399,
+    allergens: ['dairy', 'gluten'],
+  },
+  {
+    id: 'item-veggie-md',
+    name: 'Medium Veggie Pizza',
+    category: 'Pizza',
+    description: 'Bell pepper, onion, mushroom, olive',
+    price_cents: 1599,
+    allergens: ['dairy', 'gluten'],
+  },
+  {
+    id: 'item-veggie-lg',
+    name: 'Large Veggie Pizza',
+    category: 'Pizza',
+    description: 'Bell pepper, onion, mushroom, olive',
+    price_cents: 1799,
+    allergens: ['dairy', 'gluten'],
   },
 ];
 
@@ -89,22 +136,22 @@ async function main() {
       .select({ id: menus.id })
       .from(menus)
       .where(eq(menus.tenant_id, tenantId));
+
+    const nextVersion = existingMenus.length + 1;
     if (existingMenus.length > 0) {
-      console.info(
-        `[seed:voice] menu row(s) already present (${existingMenus.length}), leaving as-is`,
-      );
-      return;
+      await tx.update(menus).set({ is_current: false }).where(eq(menus.tenant_id, tenantId));
+      console.info(`[seed:voice] archived ${existingMenus.length} prior menu version(s)`);
     }
 
     await tx.insert(menus).values({
       tenant_id: tenantId,
-      version: 1,
+      version: nextVersion,
       items: MENU_ITEMS,
       modifiers: [],
-      categories: ['Pizza', 'Salads', 'Drinks'],
+      categories: ['Pizza'],
       is_current: true,
     });
-    console.info(`[seed:voice] inserted menu v1 (${MENU_ITEMS.length} items)`);
+    console.info(`[seed:voice] inserted menu v${nextVersion} (${MENU_ITEMS.length} items)`);
   });
 
   await (db as unknown as { $client?: { end?: () => Promise<void> } }).$client?.end?.();

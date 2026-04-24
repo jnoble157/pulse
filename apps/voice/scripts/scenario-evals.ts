@@ -32,10 +32,13 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const MENU: MenuItem[] = [
   { id: 'item-cheese-sm', name: 'Small Cheese Pizza', category: 'pizza', price_cents: 1299 },
   { id: 'item-cheese-md', name: 'Medium Cheese Pizza', category: 'pizza', price_cents: 1499 },
-  { id: 'item-cheese-lg', name: 'Large Cheese Pizza', category: 'pizza', price_cents: 1799 },
+  { id: 'item-cheese-lg', name: 'Large Cheese Pizza', category: 'pizza', price_cents: 1699 },
+  { id: 'item-pepperoni-sm', name: 'Small Pepperoni Pizza', category: 'pizza', price_cents: 1399 },
   { id: 'item-pepperoni-md', name: 'Medium Pepperoni Pizza', category: 'pizza', price_cents: 1699 },
-  { id: 'item-veggie-md', name: 'Medium Veggie Pizza', category: 'pizza', price_cents: 1699 },
-  { id: 'item-caesar', name: 'Caesar Salad', category: 'salad', price_cents: 650 },
+  { id: 'item-pepperoni-lg', name: 'Large Pepperoni Pizza', category: 'pizza', price_cents: 1799 },
+  { id: 'item-veggie-sm', name: 'Small Veggie Pizza', category: 'pizza', price_cents: 1399 },
+  { id: 'item-veggie-md', name: 'Medium Veggie Pizza', category: 'pizza', price_cents: 1599 },
+  { id: 'item-veggie-lg', name: 'Large Veggie Pizza', category: 'pizza', price_cents: 1799 },
 ];
 
 type Exchange = {
@@ -106,6 +109,20 @@ const SCENARIOS: Scenario[] = [
             /transfer|person|manager|accurate answer|someone who can help/i,
             'tell caller they are being routed to a person',
           ),
+        ],
+      },
+    ],
+  },
+  {
+    id: 'unavailable-item',
+    title: 'Unavailable item asks for an on-menu alternative without adding to cart',
+    steps: [
+      {
+        caller: 'Can I get a Hawaiian pizza?',
+        checks: [
+          hasAgentText(/don'?t have|not on the menu|don’t have/i, 'say item is unavailable'),
+          hasAgentText(/cheese|pepperoni|veggie|what we do have/i, 'offer an on-menu alternative'),
+          notHasDecision('add_to_cart', 'do not add unavailable item to cart'),
         ],
       },
     ],
@@ -196,7 +213,10 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
     }
     const result = applyTool(session, turn);
     if (session.terminal) {
-      const text = turn.text?.trim() || terminalLine(session.terminal.kind);
+      const text =
+        session.terminal.kind === 'ended'
+          ? evalCloseoutText(session, turn.text?.trim())
+          : turn.text?.trim() || terminalLine(session.terminal.kind);
       if (text) {
         session.appendTurn('agent', text, Math.round(session.now()), Math.round(session.now()));
         agentTexts.push(text);
@@ -253,6 +273,39 @@ function buildVoiceEnv(): VoiceEnv {
 function terminalLine(kind: 'transferred' | 'ended'): string {
   if (kind === 'transferred') return "One sec, I'm transferring you to a person.";
   return 'Thanks for calling. Have a good one.';
+}
+
+function evalCloseoutText(session: CallSession, suggested: string | undefined): string {
+  if (session.cart.length === 0) return suggested || terminalLine('ended');
+  const totalCents = session.cart.reduce(
+    (sum, item) => sum + (item.unit_price_cents ?? 0) * item.quantity,
+    0,
+  );
+  const total = Number.isFinite(totalCents) ? `$${(totalCents / 100).toFixed(2)}` : null;
+  const first = firstNameFromSession(session);
+  const items = session.cart.map((item) => `${item.quantity} ${item.item_name_spoken}`).join(', ');
+  return [
+    first ? `Perfect, ${first}.` : 'Perfect.',
+    `That's ${items}${total ? ` for ${total}` : ''}.`,
+    'It will be ready in about 15 minutes.',
+    "Thanks for calling Tony's Pizza Austin.",
+  ].join(' ');
+}
+
+function firstNameFromSession(session: CallSession): string | null {
+  for (let i = session.turns.length - 1; i >= 0; i--) {
+    const turn = session.turns[i]!;
+    if (turn.speaker !== 'caller') continue;
+    const cleaned = turn.text
+      .replace(/\b(?:yeah|yep|sure|okay|ok|it'?s|this is|my name is)\b/gi, ' ')
+      .replace(/[^A-Za-z\s'-]/g, ' ')
+      .trim();
+    const first = cleaned.split(/\s+/)[0];
+    if (first && first.length >= 2) {
+      return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+    }
+  }
+  return null;
 }
 
 void main();

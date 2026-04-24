@@ -393,7 +393,7 @@ function deriveCallInsights(call: LiveCall | null): CallInsight[] {
   return insights.slice(0, 4);
 }
 
-function deriveOrderItems(call: LiveCall, lowerTranscript: string): string[] {
+export function deriveOrderItems(call: LiveCall, lowerTranscript: string): string[] {
   const items = new Map<string, string>();
   for (const turn of call.turns) {
     if (turn.action?.kind === 'add_to_cart') {
@@ -406,7 +406,7 @@ function deriveOrderItems(call: LiveCall, lowerTranscript: string): string[] {
     }
   }
 
-  if (items.size === 0) {
+  if (items.size === 0 && call.source === 'example') {
     if (lowerTranscript.includes('large pepperoni')) {
       items.set('large pepperoni', '1x Large Pepperoni Pizza');
     }
@@ -528,8 +528,11 @@ function deriveEscalation(call: LiveCall, lowerTranscript: string): string | nul
 }
 
 function deriveStatus(call: LiveCall, hasOrder: boolean): string {
+  const transferred = call.turns.some((turn) => turn.action?.kind === 'transfer_to_staff');
+  if (transferred && !call.ended_at) return 'Transfer initiated';
   if (!call.ended_at) return 'Listening for next step';
   if (call.source === 'example') return 'Sample complete';
+  if (transferred) return 'Transfer initiated';
   if (hasOrder) return 'Order ready for staff review';
   return 'Call complete';
 }

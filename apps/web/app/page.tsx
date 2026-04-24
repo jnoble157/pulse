@@ -44,6 +44,14 @@ function TopChrome() {
           <span className="text-[17px] font-semibold tracking-tight">Pulse</span>
         </Link>
         <nav className="flex items-center gap-5 text-sm text-text-secondary">
+          <a
+            href="/menu.html"
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:text-text-primary hover:underline"
+          >
+            Menu
+          </a>
           <a href="#notes" className="underline-offset-4 hover:text-text-primary hover:underline">
             Notes
           </a>
