@@ -528,6 +528,21 @@ export class Orchestrator {
       // this, a late-resolving greeting (waitForPlayback) would null out a
       // newer response's handle and break barge-in for the rest of the call.
       let myHandle: { cancel: () => void } | null = null;
+      // Idempotent settle. The TTS lifecycle has three terminal paths
+      // (onDone, onError, onCancel) and we MUST resolve the outer promise
+      // exactly once, otherwise a barge-in arriving after onDone (or vice
+      // versa) leaves the decide loop awaiting forever and the agent goes
+      // silent for the rest of the call.
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        if (this.speaking === myHandle) {
+          this.speaking = null;
+          this.callerFinalAt = null;
+        }
+        resolve();
+      };
       console.info(
         `[voice] speak start chars=${text.length} twilio_ready_state=${this.twilioWs.readyState}`,
       );
@@ -580,14 +595,10 @@ export class Orchestrator {
                 sentFrames * 20,
               );
             }
-            if (this.speaking === myHandle) {
-              this.speaking = null;
-              this.callerFinalAt = null;
-            }
             console.info(
               `[voice] spoke ${text.length} chars in ${Math.round(performance.now() - startedAt)}ms`,
             );
-            resolve();
+            settle();
           })();
         },
         onError: (err) => {
@@ -606,8 +617,16 @@ export class Orchestrator {
               turn: { speaker: 'agent', text: fallback, t_ms: Date.now() - this.callStartMs },
             });
           }
-          if (this.speaking === myHandle) this.speaking = null;
-          resolve();
+          settle();
+        },
+        onCancel: () => {
+          // Barge-in (or shutdown) cancelled this turn. Settle immediately
+          // — do NOT await waitForPlaybackMark, the buffer was just cleared
+          // and no `mark` will ever come back.
+          console.info(
+            `[voice] tts cancelled after ${sentFrames} frames in ${Math.round(performance.now() - startedAt)}ms`,
+          );
+          settle();
         },
       });
       myHandle = handle;

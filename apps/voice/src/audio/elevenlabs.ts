@@ -22,6 +22,13 @@ export type TtsOptions = {
   onFirstChunk?: () => void;
   onDone?: () => void;
   onError?: (err: Error) => void;
+  /**
+   * Fires synchronously when the caller calls `cancel()` (typically barge-in).
+   * Without this hook the WS just closes and neither `onDone` nor `onError`
+   * runs — which would hang the per-turn promise in `orchestrator.speak()`
+   * and freeze the decide loop forever.
+   */
+  onCancel?: () => void;
 };
 
 export function streamTts(opts: TtsOptions): { cancel: () => void } {
@@ -136,8 +143,15 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 
   return {
     cancel: () => {
+      if (cancelled) return;
       cancelled = true;
       if (ws.readyState === WebSocket.OPEN) ws.close();
+      // Settle the lifecycle exactly once. If a chunk arrived first and
+      // `onDone`/`onError` already ran, `settled` short-circuits this.
+      if (!settled) {
+        settled = true;
+        opts.onCancel?.();
+      }
     },
   };
 }

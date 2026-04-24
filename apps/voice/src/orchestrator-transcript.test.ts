@@ -31,18 +31,56 @@ vi.mock('./audio/deepgram.js', () => {
   };
 });
 
+type TtsHandle = {
+  cancel: () => void;
+  /** Manually fire onDone (used by the barge-in test that holds it open). */
+  finish: () => void;
+  cancelled: boolean;
+  settled: boolean;
+};
+
+/**
+ * Tracks the current TTS streams so a test can either let them auto-complete
+ * (default) or hold a stream open and cancel it explicitly to exercise the
+ * barge-in path.
+ */
+const ttsState: { handles: TtsHandle[]; autoFinish: boolean } = {
+  handles: [],
+  autoFinish: true,
+};
+
 vi.mock('./audio/elevenlabs.js', () => ({
   streamTts: (opts: {
     onChunk: (c: Buffer) => void;
     onDone: () => void;
     onFirstChunk?: () => void;
+    onCancel?: () => void;
   }) => {
+    const handle: TtsHandle = {
+      cancelled: false,
+      settled: false,
+      cancel: () => {
+        if (handle.cancelled) return;
+        handle.cancelled = true;
+        if (!handle.settled) {
+          handle.settled = true;
+          opts.onCancel?.();
+        }
+      },
+      finish: () => {
+        if (handle.settled) return;
+        handle.settled = true;
+        opts.onDone();
+      },
+    };
+    ttsState.handles.push(handle);
     queueMicrotask(() => {
+      if (handle.cancelled) return;
       opts.onFirstChunk?.();
       opts.onChunk(Buffer.from([0xff]));
-      opts.onDone();
+      if (ttsState.autoFinish) handle.finish();
     });
-    return { cancel: () => {} };
+    return { cancel: handle.cancel };
   },
 }));
 
@@ -154,6 +192,8 @@ describe('orchestrator transcript flow', () => {
   beforeEach(() => {
     decideMock.mockReset();
     dgState.last = null;
+    ttsState.handles = [];
+    ttsState.autoFinish = true;
   });
 
   test('a single final triggers exactly one decide loop', async () => {
@@ -214,6 +254,48 @@ describe('orchestrator transcript flow', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test('barge-in cancels speak so the next caller turn still triggers decide', async () => {
+    // Production trace: caller barged in mid-"What's your phone number?",
+    // ElevenLabs WS was closed, neither onDone nor onError fired, the speak
+    // promise never resolved, deciding stayed true, and every subsequent
+    // caller turn just queued pendingDecide forever. The agent went silent
+    // until the caller hung up. This test forces that exact sequence.
+    decideMock.mockResolvedValue({
+      action: 'say',
+      text: "Thanks. What's the best phone number to reach you at?",
+    } as AgentTurn);
+    const orch = new Orchestrator(fakeWs() as never, TENANT, ENV);
+    startCall(orch);
+    // Let the greeting auto-complete so greetingDone flips and barge-in is
+    // armed for the rest of the call.
+    await flush();
+
+    // Caller's first turn → decide → say. Hold this stream open so we can
+    // cancel it from under the agent (just like Twilio mid-stream).
+    ttsState.autoFinish = false;
+    dg().onTranscript(buildTranscript("It's Josh.", true));
+    await flush();
+    expect(decideMock).toHaveBeenCalledTimes(1);
+    const speakingHandle = ttsState.handles[ttsState.handles.length - 1];
+    expect(speakingHandle).toBeDefined();
+    expect(speakingHandle.settled).toBe(false);
+
+    // Simulate barge-in: caller starts the next sentence while the agent is
+    // still speaking. The orchestrator must cancel the in-flight speak and
+    // unblock the decide loop.
+    ttsState.autoFinish = true;
+    (orch as unknown as { bargeIn: () => void }).bargeIn();
+    expect(speakingHandle.cancelled).toBe(true);
+    expect(speakingHandle.settled).toBe(true);
+
+    // Next caller utterance must produce a new decide call. Before the fix
+    // this assertion failed — decide stayed at 1 forever.
+    decideMock.mockResolvedValueOnce({ action: 'say', text: 'Got it.' } as AgentTurn);
+    dg().onTranscript(buildTranscript('And the number is 724-472-2013.', true));
+    await flush();
+    expect(decideMock).toHaveBeenCalledTimes(2);
   });
 
   test('two add_to_cart turns in one decide loop emit two cart.snapshot events', async () => {
