@@ -67,6 +67,7 @@ export class Orchestrator {
   private pendingPlaybackMarks = new Map<string, () => void>();
   private readonly livePush: LivePushClient;
   private callerNumber: string | null = null;
+  private lastFinalTranscriptSig: string | null = null;
 
   constructor(
     private readonly twilioWs: WsWebSocket,
@@ -155,7 +156,7 @@ export class Orchestrator {
   }): void {
     const text = t.channel.alternatives[0]?.transcript?.trim() ?? '';
     if (!text) return;
-    if (!t.is_final || !t.speech_final) {
+    if (!t.is_final) {
       if (this.speaking && text.length >= 2 && this.greetingDone) this.bargeIn();
       return;
     }
@@ -163,6 +164,9 @@ export class Orchestrator {
 
     const startMs = Math.round(t.start * 1000);
     const endMs = startMs + Math.round(t.duration * 1000);
+    const sig = `${startMs}:${endMs}:${text.toLowerCase()}`;
+    if (sig === this.lastFinalTranscriptSig) return;
+    this.lastFinalTranscriptSig = sig;
     this.session.appendTurn('caller', text, startMs, endMs);
     this.callerFinalAt = performance.now();
     if (!this.greetingReplayedWithCaller) {
@@ -200,7 +204,6 @@ export class Orchestrator {
       let obs: ToolResult | undefined = observation;
       let spokeThisLoop = false;
       let cartAddsThisLoop = 0;
-      let toolStepsThisLoop = 0;
       // Each tool call feeds back into a follow-up decision; cap at 8 to
       // avoid a runaway loop on a confused turn.
       for (let i = 0; i < MAX_DECIDE_TOOL_STEPS; i++) {
@@ -233,7 +236,6 @@ export class Orchestrator {
         }
 
         const result = applyTool(this.session, turn);
-        toolStepsThisLoop += 1;
         if (result?.kind === 'cart_added') cartAddsThisLoop += 1;
         if (
           result?.kind === 'cart_error' &&
@@ -257,23 +259,6 @@ export class Orchestrator {
         }
         if (cartAddsThisLoop >= 2) {
           const line = 'Got it. I added those pizzas. Do you want anything else?';
-          this.session.appendTurn(
-            'agent',
-            line,
-            Math.round(this.session.now()),
-            Math.round(this.session.now()),
-          );
-          this.livePush.emit({
-            kind: 'turn.appended',
-            call_id: this.session.callId,
-            turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
-          });
-          await this.speak(line, decideMs);
-          spokeThisLoop = true;
-          break;
-        }
-        if (cartAddsThisLoop >= 1 && toolStepsThisLoop >= 3) {
-          const line = 'Got it. I added that. Do you want anything else with your order?';
           this.session.appendTurn(
             'agent',
             line,
@@ -452,6 +437,7 @@ export class Orchestrator {
             if (opts.waitForPlayback && sentFrames > 0) {
               await this.waitForPlaybackMark(
                 `tts-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                sentFrames * 20,
               );
             }
             this.speaking = null;
@@ -486,7 +472,7 @@ export class Orchestrator {
     });
   }
 
-  private waitForPlaybackMark(name: string): Promise<void> {
+  private waitForPlaybackMark(name: string, expectedPlaybackMs: number): Promise<void> {
     const streamSid = this.streamSid;
     if (!streamSid) return Promise.resolve();
     return new Promise<void>((resolve) => {
@@ -498,7 +484,11 @@ export class Orchestrator {
         this.pendingPlaybackMarks.delete(name);
         resolve();
       };
-      const timeout = setTimeout(finish, TWILIO_PLAYBACK_MARK_TIMEOUT_MS);
+      const timeoutMs = Math.min(
+        30_000,
+        Math.max(TWILIO_PLAYBACK_MARK_TIMEOUT_MS, expectedPlaybackMs + 4_000),
+      );
+      const timeout = setTimeout(finish, timeoutMs);
       this.pendingPlaybackMarks.set(name, finish);
       try {
         this.twilioWs.send(makeMark(streamSid, name));
@@ -699,18 +689,21 @@ function callerFirstName(session: CallSession): string | null {
       cur.text.match(/\bmy name is\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
       cur.text.match(/\bit'?s\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
       cur.text.match(/\bthis is\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
+      cur.text.match(/\bfor\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
       null;
-    const candidate =
-      explicit ??
-      cur.text
-        .replace(
-          /\b(?:yeah|yep|sure|okay|ok|it'?s|this is|my name is|that'?s it|nope)\b[,\s]*/gi,
-          '',
-        )
-        .replace(/[^A-Za-z\s'-]/g, ' ')
-        .trim()
-        .split(/\s+/)[0];
-    if (candidate && candidate.length >= 2) return capitalize(candidate);
+    if (explicit) return capitalize(explicit);
+    const normalized = cur.text.toLowerCase();
+    if (/\b(no|nope|nothing|that'?s it|all set)\b/.test(normalized)) continue;
+    if (!/\d{3}[-.)\s]?\d{3}[-.\s]?\d{4}/.test(cur.text)) continue;
+    const candidate = cur.text
+      .replace(/\b(?:yeah|yep|sure|okay|ok)\b[,\s]*/gi, '')
+      .replace(/[,:-]?\s*(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\s*$/g, '')
+      .replace(/[^A-Za-z\s'-]/g, ' ')
+      .trim()
+      .split(/\s+/)[0];
+    if (candidate && candidate.length >= 2 && !/^(no|nope|that|all|okay|ok)$/i.test(candidate)) {
+      return capitalize(candidate);
+    }
   }
   return null;
 }
