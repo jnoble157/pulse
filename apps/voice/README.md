@@ -67,11 +67,11 @@ Think of **three boxes**: (1) **Postgres** = where Tony’s menu and tenant row 
 
 1. **New Railway project → Deploy from GitHub repo.** Pick this repo. Railway picks up [`railway.json`](../../railway.json) at the repo root, which points at [`apps/voice/Dockerfile`](Dockerfile). Build context is the repo root so the Dockerfile can pull in `@pulse/schema` and `@pulse/telemetry`.
 
-2. **Add a Postgres plugin** to the Railway project. Bind its `DATABASE_URL` to the voice service. Then, from your local machine with `DATABASE_URL` pointed at the Railway Postgres, run:
+2. **Add a Postgres plugin** to the Railway project. Bind its `DATABASE_URL` to the voice service (the **`*.railway.internal`** URL is correct for the running container). **Your laptop cannot resolve `*.railway.internal`:** for `pnpm db:migrate` / `pnpm seed:voice` use either (a) the Postgres **public** / **TCP proxy** URL from **Connect** in the Railway dashboard, or (b) from the repo: `railway link` then `railway run pnpm db:migrate` and `railway run pnpm seed:voice` so the command runs inside Railway’s network.
 
    ```bash
-   DATABASE_URL=<railway-postgres-url> pnpm db:migrate
-   DATABASE_URL=<railway-postgres-url> pnpm seed:voice
+   DATABASE_URL=<public-or-proxy-postgres-url> pnpm db:migrate
+   DATABASE_URL=<public-or-proxy-postgres-url> pnpm seed:voice
    ```
 
    This creates the `tonys-pizza-austin` tenant + menu the agent needs at boot.
@@ -108,11 +108,11 @@ Use this if you prefer a single checklist over the six bullets above.
 
 3. **Add Postgres.** In the same project → **New** → **Database** → **Add PostgreSQL**. When it finishes provisioning, open the Postgres service → **Variables** and copy `DATABASE_URL` (or use Railway’s **Connect** / service linking so your **voice** service receives `DATABASE_URL` automatically—either is fine as long as the running voice container sees a valid `DATABASE_URL`).
 
-4. **Migrate and seed (from your machine).** One-time, pointing at the **cloud** database (use the internal URL Railway shows for the Postgres service if the CLI runs outside Railway; use the **public** URL only if that’s what your network can reach):
+4. **Migrate and seed (from your machine).** One-time against the **same** Railway Postgres the voice app uses. Do **not** use `postgres.railway.internal` on your Mac (`ENOTFOUND`). Use the **public** connection string from the Postgres service **Connect** tab, or `railway run pnpm db:migrate` / `railway run pnpm seed:voice` after `railway link`.
 
    ```bash
-   DATABASE_URL='<paste-from-railway>' pnpm db:migrate
-   DATABASE_URL='<paste-from-railway>' pnpm seed:voice
+   DATABASE_URL='<public-tcp-url-or-use-railway-run>' pnpm db:migrate
+   DATABASE_URL='<public-tcp-url-or-use-railway-run>' pnpm seed:voice
    ```
 
    Use the **same** `PII_ENCRYPTION_KEY` you will set on the voice service in the next step (generate once with `openssl rand -hex 32` and never rotate casually—rotating breaks decrypting existing rows).
