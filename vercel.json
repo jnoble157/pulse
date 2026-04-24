@@ -4,5 +4,5 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "outputDirectory": "apps/web/.next",
-  "ignoreCommand": "bash -c \"cd \\\"$(git rev-parse --show-toplevel)\\\" && if [ -n \\\"${VERCEL_FORCE_DEPLOY:-}\\\" ]; then exit 1; fi; if git diff --quiet HEAD~1 HEAD -- apps/web packages vercel.json turbo.json package.json pnpm-lock.yaml pnpm-workspace.yaml; then exit 0; else exit 1; fi\""
+  "ignoreCommand": "bash \"$(git rev-parse --show-toplevel)/scripts/vercel-ignore-build.sh\""
 }
