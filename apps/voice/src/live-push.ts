@@ -76,7 +76,10 @@ export class LivePushClient {
         body: JSON.stringify(event),
       });
       if (!res.ok) {
-        console.warn(`[voice] live-push ${event.kind} → ${res.status}`);
+        const detail = await res.text().catch(() => '');
+        console.warn(
+          `[voice] live-push ${event.kind} → ${res.status}${detail ? ` ${detail.slice(0, 240)}` : ''}`,
+        );
       }
     } catch (err) {
       console.warn(`[voice] live-push ${event.kind} failed:`, (err as Error).message);

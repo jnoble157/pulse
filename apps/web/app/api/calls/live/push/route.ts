@@ -15,23 +15,42 @@ import { emitCallEvent, type CallEvent } from '@/lib/live-calls';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const TurnSchema = z.object({
-  speaker: z.enum(['caller', 'agent']),
-  text: z.string().min(1),
-  t_ms: z.number().int().nonnegative(),
-  action: z
-    .union([
-      z.object({
-        kind: z.literal('add_to_cart'),
-        item: z.string(),
-        qty: z.number().int().positive(),
-      }),
-      z.object({ kind: z.literal('transfer_to_staff'), reason: z.string() }),
-      z.object({ kind: z.literal('end_call') }),
-      z.object({ kind: z.literal('lookup_menu_item'), query: z.string() }),
-    ])
-    .optional(),
-});
+const TurnSchema = z
+  .object({
+    speaker: z.enum(['caller', 'agent']),
+    text: z.string(),
+    t_ms: z.number().int().nonnegative(),
+    action: z
+      .union([
+        z.object({
+          kind: z.literal('add_to_cart'),
+          item: z.string(),
+          qty: z.number().int().positive(),
+        }),
+        z.object({ kind: z.literal('transfer_to_staff'), reason: z.string() }),
+        z.object({ kind: z.literal('end_call') }),
+        z.object({ kind: z.literal('lookup_menu_item'), query: z.string() }),
+      ])
+      .optional(),
+  })
+  .superRefine((turn, ctx) => {
+    const hasText = turn.text.trim().length > 0;
+    if (turn.speaker === 'caller' && !hasText) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['text'],
+        message: 'caller turns require text',
+      });
+      return;
+    }
+    if (turn.speaker === 'agent' && !turn.action && !hasText) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['text'],
+        message: 'agent turns need text unless an action is attached',
+      });
+    }
+  });
 
 const EventSchema = z.discriminatedUnion('kind', [
   z.object({
