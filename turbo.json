@@ -17,7 +17,7 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "env": ["DATABASE_URL", "PII_ENCRYPTION_KEY"]
+      "env": ["DATABASE_URL", "RLS_ADMIN_DATABASE_URL", "PII_ENCRYPTION_KEY"]
     },
     "dev": {
       "cache": false,

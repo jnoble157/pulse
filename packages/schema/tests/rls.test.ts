@@ -29,8 +29,7 @@ const RLS_ADMIN_DATABASE_URL = process.env.RLS_ADMIN_DATABASE_URL;
 
 /** App-style role for RLS assertions + superuser (or owner) for admin DDL/DML. */
 const strictRls =
-  Boolean(DATABASE_URL && RLS_ADMIN_DATABASE_URL) &&
-  RLS_ADMIN_DATABASE_URL !== DATABASE_URL;
+  Boolean(DATABASE_URL && RLS_ADMIN_DATABASE_URL) && RLS_ADMIN_DATABASE_URL !== DATABASE_URL;
 
 const describeIfDb = DATABASE_URL ? describe : describe.skip;
 
@@ -117,9 +116,7 @@ describeIfDb('RLS cross-tenant isolation', () => {
       await adminDb.transaction(async (tx) => {
         await tx.execute(sql.raw('SET LOCAL row_security = off'));
         await tx.execute(
-          sql.raw(
-            `DELETE FROM calls WHERE tenant_id IN ('${tenantA}'::uuid, '${tenantB}'::uuid)`,
-          ),
+          sql.raw(`DELETE FROM calls WHERE tenant_id IN ('${tenantA}'::uuid, '${tenantB}'::uuid)`),
         );
         await tx.execute(
           sql.raw(`DELETE FROM tenants WHERE id IN ('${tenantA}'::uuid, '${tenantB}'::uuid)`),
