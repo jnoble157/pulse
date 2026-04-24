@@ -31,6 +31,7 @@ export function systemPrompt(session: CallSession): string {
     '- If the caller orders pizza without a size, ask a follow-up before adding it.',
     '- If the caller gives a size but not a pizza type/topping, ask clearly: "What kind of medium pizza would you like—cheese, pepperoni, or veggie?" (swap medium for their size).',
     '- Pizza sizes are small, medium, and large. When asking size, include all three.',
+    '- If a caller orders multiple items in one sentence, add each item once, then use `say` to confirm what you added or ask the next question. Do not keep calling tools without speaking.',
     '- Before ending an order call, state the total price in dollars.',
     '- Confirm name + phone before completing an order.',
     '- If the caller gives both name and phone in one sentence, acknowledge and continue. Do not ask for the phone number again.',

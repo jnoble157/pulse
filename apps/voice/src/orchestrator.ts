@@ -199,6 +199,7 @@ export class Orchestrator {
     try {
       let obs: ToolResult | undefined = observation;
       let spokeThisLoop = false;
+      let cartAddsThisLoop = 0;
       // Each tool call feeds back into a follow-up decision; cap at 4 to
       // avoid a runaway loop on a confused turn.
       for (let i = 0; i < MAX_DECIDE_TOOL_STEPS; i++) {
@@ -231,6 +232,44 @@ export class Orchestrator {
         }
 
         const result = applyTool(this.session, turn);
+        if (result?.kind === 'cart_added') cartAddsThisLoop += 1;
+        if (
+          result?.kind === 'cart_error' &&
+          result.reason === 'duplicate_add_for_same_caller_turn'
+        ) {
+          const line = 'Got it. I have that order down. Do you want anything else?';
+          this.session.appendTurn(
+            'agent',
+            line,
+            Math.round(this.session.now()),
+            Math.round(this.session.now()),
+          );
+          this.livePush.emit({
+            kind: 'turn.appended',
+            call_id: this.session.callId,
+            turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
+          });
+          await this.speak(line, decideMs);
+          spokeThisLoop = true;
+          break;
+        }
+        if (cartAddsThisLoop >= 2) {
+          const line = 'Got it. I added those pizzas. Do you want anything else?';
+          this.session.appendTurn(
+            'agent',
+            line,
+            Math.round(this.session.now()),
+            Math.round(this.session.now()),
+          );
+          this.livePush.emit({
+            kind: 'turn.appended',
+            call_id: this.session.callId,
+            turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
+          });
+          await this.speak(line, decideMs);
+          spokeThisLoop = true;
+          break;
+        }
         const action = liveActionFor(turn, result);
         if (action) {
           this.livePush.emit({

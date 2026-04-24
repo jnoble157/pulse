@@ -110,6 +110,7 @@ const SCENARIOS: Scenario[] = [
         checks: [
           hasDecision('add_to_cart', 'add at least one requested item'),
           noDuplicateAddForSameItem('avoid repeating the same add_to_cart in one exchange'),
+          hasAgentText(/got it|anything else|name|phone|total/i, 'produce a spoken follow-up'),
         ],
       },
     ],
@@ -253,6 +254,7 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
   const agentTexts: string[] = [];
   const successfulAdds = new Set<string>();
   let duplicateSuccessfulAdd = false;
+  let cartAddsThisExchange = 0;
 
   for (let i = 0; i < 8; i++) {
     if (session.terminal) break;
@@ -266,15 +268,29 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
     }
     const result = applyTool(session, turn);
     if (turn.action === 'add_to_cart' && result?.kind === 'cart_added') {
+      cartAddsThisExchange += 1;
       const key = `${result.item.id}:${result.item.quantity}`;
       if (successfulAdds.has(key)) duplicateSuccessfulAdd = true;
       successfulAdds.add(key);
     }
-    if (session.terminal) {
+    if (result?.kind === 'cart_error' && result.reason === 'duplicate_add_for_same_caller_turn') {
+      const text = 'Got it. I have that order down. Do you want anything else?';
+      session.appendTurn('agent', text, Math.round(session.now()), Math.round(session.now()));
+      agentTexts.push(text);
+      break;
+    }
+    if (cartAddsThisExchange >= 2) {
+      const text = 'Got it. I added those pizzas. Do you want anything else?';
+      session.appendTurn('agent', text, Math.round(session.now()), Math.round(session.now()));
+      agentTexts.push(text);
+      break;
+    }
+    const terminal = session.terminal;
+    if (terminal) {
       const text =
-        session.terminal.kind === 'ended'
+        terminal.kind === 'ended'
           ? evalCloseoutText(session, turn.text?.trim())
-          : turn.text?.trim() || terminalLine(session.terminal.kind);
+          : turn.text?.trim() || terminalLine(terminal.kind);
       if (text) {
         session.appendTurn('agent', text, Math.round(session.now()), Math.round(session.now()));
         agentTexts.push(text);
@@ -282,6 +298,14 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
       break;
     }
     observation = result ?? undefined;
+  }
+  if (!session.terminal && agentTexts.length === 0) {
+    const text =
+      session.cart.length > 0
+        ? 'Got it. Do you want anything else with that order?'
+        : "Sorry, I didn't catch that. Could you repeat that once?";
+    session.appendTurn('agent', text, Math.round(session.now()), Math.round(session.now()));
+    agentTexts.push(text);
   }
 
   return {
