@@ -55,6 +55,7 @@ export class Orchestrator {
   private callStartMs = 0;
   /** Interim barge-in is suppressed until the opening `speak()` completes. */
   private greetingDone = false;
+  private greetingReplayedWithCaller = false;
   private readonly livePush: LivePushClient;
   private callerNumber: string | null = null;
 
@@ -154,6 +155,17 @@ export class Orchestrator {
     const endMs = startMs + Math.round(t.duration * 1000);
     this.session.appendTurn('caller', text, startMs, endMs);
     this.callerFinalAt = performance.now();
+    if (!this.greetingReplayedWithCaller) {
+      const greeting = this.session.turns.find((turn) => turn.speaker === 'agent');
+      if (greeting) {
+        this.livePush.emit({
+          kind: 'turn.appended',
+          call_id: this.session.callId,
+          turn: { speaker: 'agent', text: greeting.text, t_ms: greeting.t_start_ms },
+        });
+      }
+      this.greetingReplayedWithCaller = true;
+    }
     this.livePush.emit({
       kind: 'turn.appended',
       call_id: this.session.callId,

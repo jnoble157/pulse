@@ -50,8 +50,7 @@ if (!ELEVENLABS_API_KEY) {
 // anyone announcing themselves.
 const AGENT_VOICE = process.env.EXAMPLE_AGENT_VOICE_ID ?? 'iP95p4xoKVk53GoZ742B'; // Chris
 const CALLER_VOICE_ORDER = process.env.EXAMPLE_CALLER_ORDER_VOICE_ID ?? 'TX3LPaxmHKxFdv7VOQHJ'; // Liam
-const CALLER_VOICE_ALLERGY =
-  process.env.EXAMPLE_CALLER_ALLERGY_VOICE_ID ?? 'cgSgspJ2msm6clMCkdW9'; // Jessica
+const CALLER_VOICE_ALLERGY = process.env.EXAMPLE_CALLER_ALLERGY_VOICE_ID ?? 'cgSgspJ2msm6clMCkdW9'; // Jessica
 const MODEL = process.env.EXAMPLE_CALLS_MODEL ?? 'eleven_flash_v2_5';
 const OUTPUT_FORMAT = process.env.EXAMPLE_CALLS_OUTPUT_FORMAT ?? 'mp3_44100_128';
 const VOICE_SETTINGS = {

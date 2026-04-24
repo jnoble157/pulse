@@ -35,6 +35,7 @@ export function CallStage({ phoneNumber }: Props) {
   const [audio, setAudio] = useState<{ scenario: 'order' | 'allergy'; url: string } | null>(null);
   const [pending, setPending] = useState<'order' | 'allergy' | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const exampleTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   // SSE subscription. Reconnects on close with a small backoff.
   useEffect(() => {
@@ -103,10 +104,7 @@ export function CallStage({ phoneNumber }: Props) {
               turns: [],
             };
           }
-          return {
-            ...prev,
-            [ev.call_id]: { ...cur, turns: [...cur.turns, ev.turn] },
-          };
+          return appendTurn(prev, cur, ev.turn);
         });
       });
 
@@ -148,6 +146,59 @@ export function CallStage({ phoneNumber }: Props) {
     };
   }, []);
 
+  const scheduleExampleTranscript = useCallback(
+    ({
+      callId,
+      scenario,
+      durationMs,
+      turns,
+    }: {
+      callId: string;
+      scenario: 'order' | 'allergy';
+      durationMs: number;
+      turns: TranscriptTurn[];
+    }) => {
+      for (const timer of exampleTimersRef.current) clearTimeout(timer);
+      exampleTimersRef.current = [];
+      const startedAt = Date.now();
+      setCalls((prev) => ({
+        ...prev,
+        [callId]: {
+          call_id: callId,
+          source: 'example',
+          caller_label:
+            scenario === 'order' ? 'Sample call · pickup order' : 'Sample call · allergy question',
+          started_at: startedAt,
+          turns: [],
+        },
+      }));
+      for (const turn of turns) {
+        exampleTimersRef.current.push(
+          setTimeout(() => {
+            setCalls((prev) => {
+              const cur = prev[callId];
+              if (!cur) return prev;
+              return appendTurn(prev, cur, turn);
+            });
+          }, turn.t_ms),
+        );
+      }
+      exampleTimersRef.current.push(
+        setTimeout(() => {
+          setCalls((prev) => {
+            const cur = prev[callId];
+            if (!cur) return prev;
+            return {
+              ...prev,
+              [callId]: { ...cur, ended_at: Date.now(), ended_reason: 'completed' },
+            };
+          });
+        }, durationMs + 500),
+      );
+    },
+    [],
+  );
+
   const playExample = useCallback(
     async (scenario: 'order' | 'allergy') => {
       if (pending) return;
@@ -158,8 +209,19 @@ export function CallStage({ phoneNumber }: Props) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body?.error ?? `failed: ${res.status}`);
         }
-        const json = (await res.json()) as { call_id: string; audio_url: string };
+        const json = (await res.json()) as {
+          call_id: string;
+          audio_url: string;
+          duration_ms: number;
+          turns: TranscriptTurn[];
+        };
         setActiveCallId(json.call_id);
+        scheduleExampleTranscript({
+          callId: json.call_id,
+          scenario,
+          durationMs: json.duration_ms,
+          turns: json.turns,
+        });
         setAudio({ scenario, url: json.audio_url });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'failed to start example';
@@ -169,7 +231,7 @@ export function CallStage({ phoneNumber }: Props) {
         setPending(null);
       }
     },
-    [pending],
+    [pending, scheduleExampleTranscript],
   );
 
   // Audio playback for example calls. Real calls don't have an audio file
@@ -183,6 +245,12 @@ export function CallStage({ phoneNumber }: Props) {
       // user gesture required; the click that triggered this should satisfy
     });
   }, [audio]);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of exampleTimersRef.current) clearTimeout(timer);
+    };
+  }, []);
 
   const sortedCalls = useMemo(
     () => Object.values(calls).sort((a, b) => b.started_at - a.started_at),
@@ -203,6 +271,28 @@ export function CallStage({ phoneNumber }: Props) {
       <audio ref={audioRef} preload="auto" className="hidden" />
     </section>
   );
+}
+
+function appendTurn(
+  calls: Record<string, LiveCall>,
+  call: LiveCall,
+  turn: TranscriptTurn,
+): Record<string, LiveCall> {
+  if (
+    call.turns.some(
+      (existing) =>
+        existing.speaker === turn.speaker &&
+        existing.text === turn.text &&
+        existing.t_ms === turn.t_ms &&
+        JSON.stringify(existing.action ?? null) === JSON.stringify(turn.action ?? null),
+    )
+  ) {
+    return calls;
+  }
+  return {
+    ...calls,
+    [call.call_id]: { ...call, turns: [...call.turns, turn] },
+  };
 }
 
 function PhoneHeader({

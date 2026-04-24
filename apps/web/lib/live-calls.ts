@@ -121,7 +121,7 @@ class LiveCallStore {
     }
     if (!call) return;
     if (event.kind === 'turn.appended') {
-      call.turns.push(event.turn);
+      if (!hasTurn(call, event.turn)) call.turns.push(event.turn);
       return;
     }
     if (event.kind === 'call.ended') {
@@ -134,6 +134,16 @@ class LiveCallStore {
       }, CALL_TTL_MS);
     }
   }
+}
+
+function hasTurn(call: LiveCall, turn: TranscriptTurn): boolean {
+  return call.turns.some(
+    (existing) =>
+      existing.speaker === turn.speaker &&
+      existing.text === turn.text &&
+      existing.t_ms === turn.t_ms &&
+      JSON.stringify(existing.action ?? null) === JSON.stringify(turn.action ?? null),
+  );
 }
 
 declare global {

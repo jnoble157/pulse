@@ -47,8 +47,8 @@ describe('POST /api/calls/example', () => {
 
     const res = await POST(new Request('http://localhost/api/calls/example?scenario=order'));
     expect(res.status).toBe(200);
-    const payload = (await res.json()) as { turns: number };
-    expect(payload.turns).toBe(manifest.turns.length);
+    const payload = (await res.json()) as { turns: typeof manifest.turns };
+    expect(payload.turns).toHaveLength(manifest.turns.length);
 
     // call.started fires synchronously inside the route handler.
     expect(events[0].kind).toBe('call.started');

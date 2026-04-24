@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
     call_id: callId,
     audio_url: manifest.audio_url,
     duration_ms: manifest.duration_ms,
-    turns: manifest.turns.length,
+    turns: manifest.turns,
   });
 }
 
