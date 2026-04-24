@@ -31,13 +31,18 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 
   ws.on('open', () => {
     if (cancelled) return ws.close();
+    // Default ElevenLabs chunk_length_schedule waits for ~120 chars before the
+    // first audio chunk — short agent lines never play. Use 50 (API min) and
+    // flush so short greetings / tool replies still synthesize.
     ws.send(
       JSON.stringify({
         text: ' ',
         voice_settings: { stability: 0.45, similarity_boost: 0.7, style: 0.2 },
+        generation_config: { chunk_length_schedule: [50, 80, 120, 160] },
       }),
     );
-    ws.send(JSON.stringify({ text: opts.text }));
+    const chunk = `${opts.text.endsWith(' ') ? opts.text : `${opts.text} `}`;
+    ws.send(JSON.stringify({ text: chunk, flush: true }));
     ws.send(JSON.stringify({ text: '' }));
   });
 
