@@ -129,6 +129,12 @@ function Footer() {
         >
           LinkedIn
         </a>
+        <a
+          href="https://github.com/jnoble157/pulse"
+          className="underline-offset-4 hover:text-text-primary hover:underline"
+        >
+          GitHub
+        </a>
       </div>
     </footer>
   );

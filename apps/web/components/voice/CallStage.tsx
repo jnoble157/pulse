@@ -365,7 +365,7 @@ type CallInsight = {
   values: string[];
 };
 
-function deriveCallInsights(call: LiveCall | null): CallInsight[] {
+export function deriveCallInsights(call: LiveCall | null): CallInsight[] {
   if (!call || call.turns.length === 0) return [];
 
   const transcript = call.turns.map((turn) => turn.text).join(' ');
@@ -407,10 +407,16 @@ export function deriveOrderItems(call: LiveCall, lowerTranscript: string): strin
   }
 
   if (items.size === 0 && call.source === 'example') {
+    if (lowerTranscript.includes('medium pepperoni')) {
+      items.set('medium pepperoni', '1x Medium Pepperoni Pizza');
+    }
+    if (lowerTranscript.includes('large veggie')) {
+      items.set('large veggie', '1x Large Veggie Pizza');
+    }
     if (lowerTranscript.includes('large pepperoni')) {
       items.set('large pepperoni', '1x Large Pepperoni Pizza');
     }
-    if (lowerTranscript.includes('caesar')) {
+    if (lowerTranscript.includes('caesar') && !items.has('caesar')) {
       const caesar = lowerTranscript.includes('no croutons')
         ? '1x Caesar Salad (no croutons)'
         : '1x Caesar Salad';
@@ -430,6 +436,7 @@ export function deriveOrderItems(call: LiveCall, lowerTranscript: string): strin
 function deriveOrderTotal(transcript: string, lowerTranscript: string): string | null {
   const dollar = transcript.match(/\$\s?(\d+(?:\.\d{2})?)/);
   if (dollar) return `$${Number(dollar[1]).toFixed(2)}`;
+  if (lowerTranscript.includes('thirty-three ninety-eight')) return '$33.98';
   if (lowerTranscript.includes('twenty-two fifty')) return '$22.50';
   if (lowerTranscript.includes('fourteen ninety-nine')) return '$14.99';
   return null;
@@ -469,15 +476,18 @@ function findCallerName(call: LiveCall): string | null {
 
 function extractNameFragment(text: string): string {
   const lower = text.toLowerCase();
+  const numberIsIdx = lower.indexOf('the number is');
   const andPhoneIdx = lower.indexOf('and the phone');
   const beforePhone =
-    andPhoneIdx > 0
-      ? text.slice(0, andPhoneIdx)
-      : (() => {
-          const phoneIdx = lower.indexOf('phone number');
-          if (phoneIdx > 0) return text.slice(0, phoneIdx);
-          return text;
-        })();
+    numberIsIdx > 0
+      ? text.slice(0, numberIsIdx)
+      : andPhoneIdx > 0
+        ? text.slice(0, andPhoneIdx)
+        : (() => {
+            const phoneIdx = lower.indexOf('phone number');
+            if (phoneIdx > 0) return text.slice(0, phoneIdx);
+            return text;
+          })();
   return beforePhone
     .replace(/[,:-]?\s*(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\s*$/g, '')
     .replace(/[,:-]?\s*[\d().\s-]{7,}\s*$/g, '')

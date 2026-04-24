@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveCall } from '@/components/voice/types';
-import { deriveOrderItems } from '@/components/voice/CallStage';
+import { deriveCallInsights, deriveOrderItems } from '@/components/voice/CallStage';
 
 describe('deriveOrderItems', () => {
   it('does not infer live order items from clarifying text only', () => {
@@ -41,5 +41,35 @@ describe('deriveOrderItems', () => {
       .join(' ')
       .toLowerCase();
     expect(deriveOrderItems(call, lower)).toEqual(['1x Large Pepperoni Pizza', '1x Caesar Salad']);
+  });
+
+  it('infers current order sample and customer info cleanly', () => {
+    const call: LiveCall = {
+      call_id: 'example-order-v2',
+      source: 'example',
+      started_at: Date.now(),
+      turns: [
+        {
+          speaker: 'agent',
+          text: "Tony's Pizza, Austin. What can I get started for you?",
+          t_ms: 0,
+        },
+        { speaker: 'caller', text: 'Hi, can I place a pickup order?', t_ms: 1_000 },
+        { speaker: 'caller', text: 'One medium pepperoni and one large veggie.', t_ms: 2_000 },
+        {
+          speaker: 'agent',
+          text: "Got it. That's one medium pepperoni and one large veggie. Your total is thirty-three ninety-eight. Can I get a name and phone number?",
+          t_ms: 3_000,
+        },
+        { speaker: 'caller', text: "It's for Mike. The number is 512-555-0142.", t_ms: 4_000 },
+      ],
+    };
+    const insights = deriveCallInsights(call);
+    expect(insights).toContainEqual({
+      label: 'Order',
+      values: ['1x Medium Pepperoni Pizza', '1x Large Veggie Pizza'],
+    });
+    expect(insights).toContainEqual({ label: 'Total', values: ['$33.98'] });
+    expect(insights).toContainEqual({ label: 'Customer', values: ['Mike', '(512) 555-0142'] });
   });
 });

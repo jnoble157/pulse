@@ -84,7 +84,7 @@ const SCENARIOS: Record<string, { caller_voice: string; turns: ScriptedTurn[] }>
       { speaker: 'caller', text: 'One medium pepperoni and one large veggie.' },
       {
         speaker: 'agent',
-        text: "Got it. That's one medium pepperoni and one large veggie. Your total is thirty-three ninety-eight. Can I get a name and phone number?",
+        text: "Got it. That's one medium pepperoni and one large veggie. Your total is $33.98. Can I get a name and phone number?",
       },
       { speaker: 'caller', text: "It's for Mike. The number is 512-555-0142." },
       {

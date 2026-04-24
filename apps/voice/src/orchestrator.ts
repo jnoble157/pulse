@@ -200,6 +200,7 @@ export class Orchestrator {
       let obs: ToolResult | undefined = observation;
       let spokeThisLoop = false;
       let cartAddsThisLoop = 0;
+      let toolStepsThisLoop = 0;
       // Each tool call feeds back into a follow-up decision; cap at 8 to
       // avoid a runaway loop on a confused turn.
       for (let i = 0; i < MAX_DECIDE_TOOL_STEPS; i++) {
@@ -232,6 +233,7 @@ export class Orchestrator {
         }
 
         const result = applyTool(this.session, turn);
+        toolStepsThisLoop += 1;
         if (result?.kind === 'cart_added') cartAddsThisLoop += 1;
         if (
           result?.kind === 'cart_error' &&
@@ -255,6 +257,23 @@ export class Orchestrator {
         }
         if (cartAddsThisLoop >= 2) {
           const line = 'Got it. I added those pizzas. Do you want anything else?';
+          this.session.appendTurn(
+            'agent',
+            line,
+            Math.round(this.session.now()),
+            Math.round(this.session.now()),
+          );
+          this.livePush.emit({
+            kind: 'turn.appended',
+            call_id: this.session.callId,
+            turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
+          });
+          await this.speak(line, decideMs);
+          spokeThisLoop = true;
+          break;
+        }
+        if (cartAddsThisLoop >= 1 && toolStepsThisLoop >= 3) {
+          const line = 'Got it. I added that. Do you want anything else with your order?';
           this.session.appendTurn(
             'agent',
             line,
