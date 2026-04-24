@@ -51,7 +51,8 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
         },
       }),
     );
-    const chunk = `${opts.text.endsWith(' ') ? opts.text : `${opts.text} `}`;
+    const speechText = normalizeSpeechText(opts.text);
+    const chunk = `${speechText.endsWith(' ') ? speechText : `${speechText} `}`;
     ws.send(JSON.stringify({ text: chunk, flush: true }));
     // End-of-input must run after flush is queued; an immediate `{ text: '' }`
     // can be processed before flush and truncate short turns to zero audio.
@@ -93,6 +94,10 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
       if (ws.readyState === WebSocket.OPEN) ws.close();
     },
   };
+}
+
+function normalizeSpeechText(text: string): string {
+  return text.replace(/!+/g, '.');
 }
 
 /**

@@ -24,7 +24,13 @@
 import type { WebSocket as WsWebSocket } from 'ws';
 import type { MenuItem } from '@pulse/schema';
 import { CallSession, type LatencyEvent } from './session.js';
-import { parseInbound, makeMediaFrame, makeClear, type TwilioInbound } from './audio/twilio.js';
+import {
+  parseInbound,
+  makeMediaFrame,
+  makeClear,
+  makeMark,
+  type TwilioInbound,
+} from './audio/twilio.js';
 import { muLawToPcm16, pcm16ToMuLaw } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
 import { streamTts, downsample16to8 } from './audio/elevenlabs.js';
@@ -35,6 +41,7 @@ import type { VoiceEnv } from './env.js';
 
 /** Twilio 8kHz μ-law media frames are ~20ms (160 samples → 160 bytes). */
 const TWILIO_MULAW_FRAME_BYTES = 160;
+const TWILIO_PLAYBACK_MARK_TIMEOUT_MS = 8_000;
 
 export type TenantContext = {
   tenantId: string;
@@ -56,6 +63,7 @@ export class Orchestrator {
   /** Interim barge-in is suppressed until the opening `speak()` completes. */
   private greetingDone = false;
   private greetingReplayedWithCaller = false;
+  private pendingPlaybackMarks = new Map<string, () => void>();
   private readonly livePush: LivePushClient;
   private callerNumber: string | null = null;
 
@@ -86,6 +94,7 @@ export class Orchestrator {
       case 'stop':
         return void this.shutdown('twilio_stop');
       case 'mark':
+        this.resolvePlaybackMark(frame.mark.name);
         return;
     }
   }
@@ -209,7 +218,11 @@ export class Orchestrator {
             call_id: this.session.callId,
             turn: { speaker: 'agent', text: reply, t_ms: Date.now() - this.callStartMs },
           });
-          await this.speak(reply, decideMs);
+          const shouldEnd = shouldAutoEndAfterSay(reply, this.session);
+          await this.speak(reply, decideMs, { waitForPlayback: shouldEnd });
+          if (shouldEnd && this.session && !this.session.terminal) {
+            this.session.terminal = { kind: 'ended', reason: 'completed_order' };
+          }
           break;
         }
 
@@ -234,7 +247,7 @@ export class Orchestrator {
             call_id: this.session.callId,
             turn: { speaker: 'agent', text: line, t_ms: Date.now() - this.callStartMs },
           });
-          await this.speak(line, decideMs);
+          await this.speak(line, decideMs, { waitForPlayback: true });
           break;
         }
         obs = result ?? undefined;
@@ -268,7 +281,11 @@ export class Orchestrator {
     }
   }
 
-  private async speak(text: string, decideMs: number): Promise<void> {
+  private async speak(
+    text: string,
+    decideMs: number,
+    opts: { waitForPlayback?: boolean } = {},
+  ): Promise<void> {
     if (!this.streamSid) return;
     return new Promise<void>((resolve) => {
       const startedAt = performance.now();
@@ -277,6 +294,7 @@ export class Orchestrator {
       let ttsOpenMs: number | null = null;
       let ttsFirstChunkMs: number | null = null;
       let firstTwilioFrameSent = false;
+      let sentFrames = 0;
       const handle = streamTts({
         apiKey: this.env.ELEVENLABS_API_KEY,
         voiceId: this.env.ELEVENLABS_VOICE_ID,
@@ -299,6 +317,7 @@ export class Orchestrator {
             const slice = mu.subarray(o, o + TWILIO_MULAW_FRAME_BYTES);
             try {
               this.twilioWs.send(makeMediaFrame(this.streamSid!, slice.toString('base64')));
+              sentFrames++;
               if (!firstTwilioFrameSent && session && callerFinalAt != null) {
                 const firstTwilioFrameMs = Math.round(performance.now() - callerFinalAt);
                 firstTwilioFrameSent = true;
@@ -318,12 +337,19 @@ export class Orchestrator {
           }
         },
         onDone: () => {
-          this.speaking = null;
-          this.callerFinalAt = null;
-          console.info(
-            `[voice] spoke ${text.length} chars in ${Math.round(performance.now() - startedAt)}ms`,
-          );
-          resolve();
+          void (async () => {
+            if (opts.waitForPlayback && sentFrames > 0) {
+              await this.waitForPlaybackMark(
+                `tts-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              );
+            }
+            this.speaking = null;
+            this.callerFinalAt = null;
+            console.info(
+              `[voice] spoke ${text.length} chars in ${Math.round(performance.now() - startedAt)}ms`,
+            );
+            resolve();
+          })();
         },
         onError: (err) => {
           console.warn('[voice] tts error:', err.message);
@@ -333,6 +359,32 @@ export class Orchestrator {
       });
       this.speaking = handle;
     });
+  }
+
+  private waitForPlaybackMark(name: string): Promise<void> {
+    const streamSid = this.streamSid;
+    if (!streamSid) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeout);
+        this.pendingPlaybackMarks.delete(name);
+        resolve();
+      };
+      const timeout = setTimeout(finish, TWILIO_PLAYBACK_MARK_TIMEOUT_MS);
+      this.pendingPlaybackMarks.set(name, finish);
+      try {
+        this.twilioWs.send(makeMark(streamSid, name));
+      } catch {
+        finish();
+      }
+    });
+  }
+
+  private resolvePlaybackMark(name: string): void {
+    this.pendingPlaybackMarks.get(name)?.();
   }
 
   private bargeIn(): void {
@@ -351,6 +403,8 @@ export class Orchestrator {
     try {
       this.deepgram?.close();
       this.speaking?.cancel();
+      for (const resolve of this.pendingPlaybackMarks.values()) resolve();
+      this.pendingPlaybackMarks.clear();
     } catch {
       /* ignore */
     }
@@ -452,6 +506,18 @@ function liveActionFor(
     default:
       return undefined;
   }
+}
+
+function shouldAutoEndAfterSay(text: string, session: CallSession): boolean {
+  if (session.terminal || session.cart.length === 0) return false;
+  const normalized = text.toLowerCase();
+  if (/[?]/.test(text)) return false;
+  if (/\b(anything else|what else|can i get|would you like|do you want)\b/.test(normalized)) {
+    return false;
+  }
+  return /\b(all set|ready for pickup|ready soon|ready for you soon|we'll have it ready|you'?re all set)\b/.test(
+    normalized,
+  );
 }
 
 function closingLine(terminal: { kind: 'transferred' | 'ended'; reason: string }): string {

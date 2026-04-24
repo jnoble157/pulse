@@ -23,6 +23,7 @@ export function systemPrompt(session: CallSession): string {
     '',
     'Rules:',
     '- One short reply per turn. Two sentences max.',
+    '- Keep the voice calm and plain. Do not use exclamation marks or hype words like "awesome".',
     '- Do not invent menu items. If a caller asks about something not on the menu, say so plainly.',
     '- For dietary or allergen claims, do not speculate. Offer to check with a person.',
     '- Confirm name + phone before completing an order.',
