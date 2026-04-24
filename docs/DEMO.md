@@ -11,13 +11,13 @@ No fictional metrics on the page. If it is not measured or not emitted as an eve
 
 ## Suggested walkthrough (~90 s)
 
-| Time | Beat |
-| --- | --- |
-| 0:00 | One line who you are; show `/`. |
-| 0:10 | Tap sample 1 (Order a pizza): audio + transcript fill in together. |
+| Time | Beat                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------- |
+| 0:00 | One line who you are; show `/`.                                                                   |
+| 0:10 | Tap sample 1 (Order a pizza): audio + transcript fill in together.                                |
 | 0:35 | Tap sample 2 (Ask about an allergy): note that the agent declines honestly and offers a callback. |
-| 0:55 | Optional: dial Twilio, one exchange, hang up; transcript appears. |
-| End | CTA: repo / email / next step. |
+| 0:55 | Optional: dial Twilio, one exchange, hang up; transcript appears.                                 |
+| End  | CTA: repo / email / next step.                                                                    |
 
 ## Ship checklist
 

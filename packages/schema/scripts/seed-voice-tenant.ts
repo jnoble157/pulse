@@ -60,7 +60,10 @@ const MENU_ITEMS: MenuItem[] = [
 async function main() {
   const db = makeDb(DATABASE_URL);
   await withAdmin(db, async (tx) => {
-    const [existing] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, SLUG));
+    const [existing] = await tx
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(eq(tenants.slug, SLUG));
 
     let tenantId: string;
     if (existing) {
@@ -81,9 +84,14 @@ async function main() {
       console.info(`[seed:voice] created tenant slug=${SLUG} id=${tenantId}`);
     }
 
-    const existingMenus = await tx.select({ id: menus.id }).from(menus).where(eq(menus.tenant_id, tenantId));
+    const existingMenus = await tx
+      .select({ id: menus.id })
+      .from(menus)
+      .where(eq(menus.tenant_id, tenantId));
     if (existingMenus.length > 0) {
-      console.info(`[seed:voice] menu row(s) already present (${existingMenus.length}), leaving as-is`);
+      console.info(
+        `[seed:voice] menu row(s) already present (${existingMenus.length}), leaving as-is`,
+      );
       return;
     }
 

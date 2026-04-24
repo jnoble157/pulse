@@ -30,9 +30,7 @@ export default async function GatePage({ searchParams }: Props) {
             placeholder="password"
           />
         </label>
-        {sp.error ? (
-          <p className="text-sm text-fn-danger">That wasn&apos;t right.</p>
-        ) : null}
+        {sp.error ? <p className="text-sm text-fn-danger">That wasn&apos;t right.</p> : null}
         <button
           type="submit"
           className="w-full rounded-pill bg-accent-black px-5 py-2.5 text-base font-medium text-white transition-colors duration-150 ease-pulse hover:bg-accent-black-hover"

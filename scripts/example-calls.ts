@@ -74,21 +74,20 @@ const SCENARIOS: Record<string, { caller_voice: string; turns: ScriptedTurn[] }>
     caller_voice: CALLER_VOICE_ORDER,
     turns: [
       { speaker: 'agent', text: "Tony's Pizza, Austin. What can I get started for you?" },
-      { speaker: 'caller', text: "Hey, can I do a pickup order? One large pepperoni." },
+      { speaker: 'caller', text: 'Hey, can I do a pickup order? One large pepperoni.' },
       {
         speaker: 'agent',
-        text: "Sure thing. One large pepperoni for pickup. Want a salad or any drinks with that?",
+        text: 'Sure thing. One large pepperoni for pickup. Want a salad or any drinks with that?',
       },
-      { speaker: 'caller', text: "Yeah, a Caesar — no croutons, please." },
+      { speaker: 'caller', text: 'Yeah, a Caesar — no croutons, please.' },
       {
         speaker: 'agent',
-        text:
-          "Got it. Large pepperoni and a Caesar, no croutons. Comes to twenty-two fifty, about twenty minutes. Can I grab a name?",
+        text: 'Got it. Large pepperoni and a Caesar, no croutons. Comes to twenty-two fifty, about twenty minutes. Can I grab a name?',
       },
       { speaker: 'caller', text: "It's for Mike. M-I-K-E." },
       {
         speaker: 'agent',
-        text: "Thanks Mike. See you in twenty.",
+        text: 'Thanks Mike. See you in twenty.',
       },
     ],
   },
@@ -98,20 +97,18 @@ const SCENARIOS: Record<string, { caller_voice: string; turns: ScriptedTurn[] }>
       { speaker: 'agent', text: "Tony's Pizza, Austin. What can I get started for you?" },
       {
         speaker: 'caller',
-        text: "Hi, quick question — my daughter has a serious gluten allergy. Do you have anything safe for her?",
+        text: 'Hi, quick question — my daughter has a serious gluten allergy. Do you have anything safe for her?',
       },
       {
         speaker: 'agent',
-        text:
-          "Honestly, no — we mix wheat dough on the same prep table all day, so I can't promise anything is safe enough for a serious allergy. I don't want to guess on this one.",
+        text: "Honestly, no — we mix wheat dough on the same prep table all day, so I can't promise anything is safe enough for a serious allergy. I don't want to guess on this one.",
       },
       { speaker: 'caller', text: "Okay, that's fair. Thanks for being straight about it." },
       {
         speaker: 'agent',
-        text:
-          "Of course. If you want, I can have the manager call you back with what we'd actually be able to do for pickup. Want me to set that up?",
+        text: "Of course. If you want, I can have the manager call you back with what we'd actually be able to do for pickup. Want me to set that up?",
       },
-      { speaker: 'caller', text: "Yeah, please." },
+      { speaker: 'caller', text: 'Yeah, please.' },
       {
         speaker: 'agent',
         text: "Got it. What's a good number?",
@@ -130,10 +127,7 @@ async function main() {
   for (const [scenario, def] of Object.entries(SCENARIOS)) {
     console.info(`[example-calls] building ${scenario}`);
     const manifest = await buildScenario(scenario, def);
-    await writeFile(
-      join(OUT_DIR, `${scenario}.json`),
-      JSON.stringify(manifest, null, 2),
-    );
+    await writeFile(join(OUT_DIR, `${scenario}.json`), JSON.stringify(manifest, null, 2));
     console.info(
       `[example-calls]   wrote ${scenario}.mp3 (${(manifest.duration_ms / 1000).toFixed(1)}s, ${manifest.turns.length} turns)`,
     );
@@ -214,11 +208,7 @@ async function tts({
   await writeFile(outPath, buf);
 }
 
-async function concatWithGaps(
-  clipPaths: string[],
-  outPath: string,
-  gapMs: number,
-): Promise<void> {
+async function concatWithGaps(clipPaths: string[], outPath: string, gapMs: number): Promise<void> {
   const tmpDir = join(CACHE_DIR, '_concat');
   await mkdir(tmpDir, { recursive: true });
   const silencePath = join(tmpDir, `silence-${gapMs}.mp3`);
@@ -270,10 +260,7 @@ async function runFfmpeg(args: string[]): Promise<void> {
   await runProcess('ffmpeg', ['-loglevel', 'error', ...args]);
 }
 
-function runProcess(
-  cmd: string,
-  args: string[],
-): Promise<{ stdout: string; stderr: string }> {
+function runProcess(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolveP, rejectP) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';

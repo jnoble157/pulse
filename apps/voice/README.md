@@ -18,19 +18,19 @@ caller ── PSTN ── Twilio ── WS /twilio/media ── Orchestrator
 
 ## Env
 
-| Key | Why |
-| --- | --- |
-| `PORT` | HTTP + WS port (default 8788). |
-| `PUBLIC_BASE_URL` | Host Twilio reaches for `/twilio/voice` + `wss://…/twilio/media`. Defaults to `http://127.0.0.1:8788` (local only; use ngrok for real PSTN). |
-| `WEB_BASE_URL` | Next.js origin for transcript push. Defaults to `http://127.0.0.1:3000`. |
-| `LIVE_CALLS_PUSH_TOKEN` | Optional. Same bearer token as the web app; without it the agent still talks on the phone, the homepage just does not get turns. |
-| `ANTHROPIC_API_KEY` | Claude per-turn decision. |
-| `DEEPGRAM_API_KEY` | Streaming STT. |
+| Key                                          | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                       | HTTP + WS port (default 8788).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `PUBLIC_BASE_URL`                            | Host Twilio reaches for `/twilio/voice` + `wss://…/twilio/media`. Defaults to `http://127.0.0.1:8788` (local only; use ngrok for real PSTN).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `WEB_BASE_URL`                               | Next.js origin for transcript push. Defaults to `http://127.0.0.1:3000`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `LIVE_CALLS_PUSH_TOKEN`                      | Optional. Same bearer token as the web app; without it the agent still talks on the phone, the homepage just does not get turns.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `ANTHROPIC_API_KEY`                          | Claude per-turn decision.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `DEEPGRAM_API_KEY`                           | Streaming STT.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | Streaming TTS (default model `eleven_flash_v2_5`). **Free tier:** includes a monthly credit pool (e.g. 10k credits on the current Free plan—check ElevenLabs for the exact meter). That is often enough for **light personal / interview-demo** traffic. **Caveats:** (1) long or frequent calls burn credits quickly; (2) ElevenLabs’ Free plan does **not** include a commercial license for generated speech—if the demo is public-facing or for a company, read their terms and consider **Starter** or higher for licensing + higher limits; (3) if a voice id or REST endpoint returns 403 on your tier, pick another stock voice or upgrade—`pnpm example-calls:build` may still use OpenAI TTS for offline sample MP3s (see `scripts/example-calls.ts` header). |
-| `ELEVENLABS_MODEL` | Defaults to `eleven_flash_v2_5`. |
-| `PULSE_TENANT_SLUG` | Defaults to `tonys-pizza-austin`. |
-| `DATABASE_URL` | Resolve tenant + menu on boot. |
-| `AGENT_MODEL` | `claude-sonnet-4-5` (default) or `claude-haiku-4-5`. |
+| `ELEVENLABS_MODEL`                           | Defaults to `eleven_flash_v2_5`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `PULSE_TENANT_SLUG`                          | Defaults to `tonys-pizza-austin`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `DATABASE_URL`                               | Resolve tenant + menu on boot.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `AGENT_MODEL`                                | `claude-sonnet-4-5` (default) or `claude-haiku-4-5`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## Local development
 
@@ -47,6 +47,22 @@ The voice server answers on `:8788` but Twilio can't reach `localhost`. For real
 
 Railway gives the voice service a stable public `https://` URL (with WebSocket support) so Twilio can hit it without ngrok. The web app stays on Vercel; the two services talk through `LIVE_CALLS_PUSH_TOKEN`.
 
+### What you are doing on Railway (plain English)
+
+Think of **three boxes**: (1) **Postgres** = where Tony’s menu and tenant row live. (2) **Pulse voice service** = the Node app that Twilio talks to; it reads Postgres on startup and streams audio + decisions. (3) **Vercel** = the website; it does **not** run the phone stack, it only receives **transcript lines** from the voice box over HTTPS.
+
+**Railway’s job** is to run box (2) and optionally host box (1). You connect GitHub so every push can rebuild the Docker image. You add Postgres so the agent has a real database in the cloud. You copy **secrets** (API keys, one shared `LIVE_CALLS_PUSH_TOKEN`) into Railway’s environment so the container starts. You click **Generate domain** so box (2) gets a permanent `https://…` URL—that URL is what you paste into Twilio and into `PUBLIC_BASE_URL`.
+
+**Twilio’s job** is: when someone dials your number, Twilio opens an HTTPS request to your Railway URL (`/twilio/voice`) and then a **WebSocket** for raw audio. None of that works if the URL is still `localhost`.
+
+**Your laptop’s job** (once): run **migrations + seed** against the **Railway** Postgres URL so the `tenants` / menu tables exist before the voice service boots. After that, day‑to‑day is just Railway + Vercel env vars and redeploys.
+
+### After Railway is green: Twilio webhook (order of operations)
+
+- Confirm the voice service is **deployed** and `curl https://<railway-host>/health` returns JSON with `"ok":true`.
+- Twilio Console → **Phone numbers** → your number → **Voice & Fax** (or “Configure”) → **A call comes in** → **Webhook** (not TwiML Bin unless you know you need that) → URL: `https://<railway-host>/twilio/voice` → HTTP **POST** → Save.
+- **Trial accounts** may ask the caller to press a key before your app runs; upgrading Twilio removes that.
+
 1. **New Railway project → Deploy from GitHub repo.** Pick this repo. Railway picks up [`railway.json`](../../railway.json) at the repo root, which points at [`apps/voice/Dockerfile`](Dockerfile). Build context is the repo root so the Dockerfile can pull in `@pulse/schema` and `@pulse/telemetry`.
 
 2. **Add a Postgres plugin** to the Railway project. Bind its `DATABASE_URL` to the voice service. Then, from your local machine with `DATABASE_URL` pointed at the Railway Postgres, run:
@@ -60,17 +76,17 @@ Railway gives the voice service a stable public `https://` URL (with WebSocket s
 
 3. **Set service variables** in Railway → Variables:
 
-   | Var | Value |
-   | --- | --- |
-   | `ANTHROPIC_API_KEY` | from Anthropic Console |
-   | `DEEPGRAM_API_KEY` | from Deepgram Console |
-   | `ELEVENLABS_API_KEY` | from ElevenLabs (free tier often OK for a light demo; see §Env for licensing / limits) |
-   | `ELEVENLABS_VOICE_ID` | the voice id you want the agent to use |
-   | `PII_ENCRYPTION_KEY` | `openssl rand -hex 32` (must match the value used at migrate) |
-   | `PULSE_TENANT_SLUG` | `tonys-pizza-austin` |
-   | `LIVE_CALLS_PUSH_TOKEN` | `openssl rand -hex 32` — also set this on Vercel |
-   | `WEB_BASE_URL` | `https://<your-vercel-app>` |
-   | `PUBLIC_BASE_URL` | leave unset for now — we set it in step 4 |
+   | Var                     | Value                                                                                  |
+   | ----------------------- | -------------------------------------------------------------------------------------- |
+   | `ANTHROPIC_API_KEY`     | from Anthropic Console                                                                 |
+   | `DEEPGRAM_API_KEY`      | from Deepgram Console                                                                  |
+   | `ELEVENLABS_API_KEY`    | from ElevenLabs (free tier often OK for a light demo; see §Env for licensing / limits) |
+   | `ELEVENLABS_VOICE_ID`   | the voice id you want the agent to use                                                 |
+   | `PII_ENCRYPTION_KEY`    | `openssl rand -hex 32` (must match the value used at migrate)                          |
+   | `PULSE_TENANT_SLUG`     | `tonys-pizza-austin`                                                                   |
+   | `LIVE_CALLS_PUSH_TOKEN` | `openssl rand -hex 32` — also set this on Vercel                                       |
+   | `WEB_BASE_URL`          | `https://<your-vercel-app>`                                                            |
+   | `PUBLIC_BASE_URL`       | leave unset for now — we set it in step 4                                              |
 
 4. **Generate a public domain.** Railway service → Settings → Networking → Generate Domain. Copy the `https://*.up.railway.app` URL. Set `PUBLIC_BASE_URL` to that exact URL and redeploy.
 
@@ -135,10 +151,10 @@ railway logs --service voice | grep call_summary | jq -s '
 
 Publish the actual figures here, do not invent them:
 
-| Metric | p50 | p95 |
-| --- | --- | --- |
-| `decide_ms` (caller stops → decide() returns) | _TBD after first 10 real calls_ | _TBD_ |
-| `decide_to_first_audio_ms` (caller stops → first TTS chunk back to Twilio) | _TBD_ | _TBD_ |
+| Metric                                                                     | p50                             | p95   |
+| -------------------------------------------------------------------------- | ------------------------------- | ----- |
+| `decide_ms` (caller stops → decide() returns)                              | _TBD after first 10 real calls_ | _TBD_ |
+| `decide_to_first_audio_ms` (caller stops → first TTS chunk back to Twilio) | _TBD_                           | _TBD_ |
 
 ## What's missing / next
 

@@ -44,10 +44,7 @@ function TopChrome() {
           <span className="text-[17px] font-semibold tracking-tight">Pulse</span>
         </Link>
         <nav className="flex items-center gap-5 text-sm text-text-secondary">
-          <a
-            href="#notes"
-            className="underline-offset-4 hover:text-text-primary hover:underline"
-          >
+          <a href="#notes" className="underline-offset-4 hover:text-text-primary hover:underline">
             Notes
           </a>
         </nav>
@@ -68,9 +65,9 @@ function Hero() {
         </p>
       </div>
       <p className="mt-4 max-w-[60ch] text-[15.5px] leading-[1.55] text-text-secondary">
-        Built for Tony&rsquo;s Pizza in Austin (a fictional restaurant). Dial the number to talk
-        to it yourself, or play a sample to hear how it handles a normal pickup order and an
-        allergy question it can&rsquo;t safely answer.
+        Built for Tony&rsquo;s Pizza in Austin (a fictional restaurant). Dial the number to talk to
+        it yourself, or play a sample to hear how it handles a normal pickup order and an allergy
+        question it can&rsquo;t safely answer.
       </p>
     </section>
   );
@@ -93,14 +90,14 @@ function Notes() {
         </p>
         <p>
           The two samples are pre-recorded so the page works even if the live agent isn&rsquo;t
-          reachable. The &ldquo;allergy&rdquo; one is the example that mattered to me to get
-          right: agents that confidently mis-answer an allergy question are a real problem. This
-          one says the truth and offers a callback from a person.
+          reachable. The &ldquo;allergy&rdquo; one is the example that mattered to me to get right:
+          agents that confidently mis-answer an allergy question are a real problem. This one says
+          the truth and offers a callback from a person.
         </p>
         <p>
-          A few things this demo does <em>not</em> do today: it doesn&rsquo;t record audio, it
-          only handles English, and Tony&rsquo;s Pizza is fictional so the menu is small. Happy to
-          walk through any of it.
+          A few things this demo does <em>not</em> do today: it doesn&rsquo;t record audio, it only
+          handles English, and Tony&rsquo;s Pizza is fictional so the menu is small. Happy to walk
+          through any of it.
         </p>
       </div>
     </section>

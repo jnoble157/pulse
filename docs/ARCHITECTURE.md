@@ -36,11 +36,11 @@ Tenant-scoped data still uses **RLS** (`app.tenant_id`). Voice boot uses `withAd
 
 ## Key paths
 
-| Path | Role |
-| --- | --- |
-| `apps/web/app/page.tsx` | Hero + `CallStage` |
-| `apps/web/components/voice/CallStage.tsx` | SSE + UI |
-| `apps/web/lib/live-calls.ts` | Event bus |
-| `apps/voice/src/server.ts` | HTTP + WS |
-| `apps/voice/src/orchestrator.ts` | Per-call state machine |
-| `apps/voice/src/live-push.ts` | POST events to web |
+| Path                                      | Role                   |
+| ----------------------------------------- | ---------------------- |
+| `apps/web/app/page.tsx`                   | Hero + `CallStage`     |
+| `apps/web/components/voice/CallStage.tsx` | SSE + UI               |
+| `apps/web/lib/live-calls.ts`              | Event bus              |
+| `apps/voice/src/server.ts`                | HTTP + WS              |
+| `apps/voice/src/orchestrator.ts`          | Per-call state machine |
+| `apps/voice/src/live-push.ts`             | POST events to web     |

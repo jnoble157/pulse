@@ -224,14 +224,11 @@ function PhoneHeader({
             {formatted}
           </a>
           <p className="mt-2.5 max-w-[34ch] text-[13.5px] leading-snug text-text-secondary">
-            Call from any phone. The agent picks up as Tony&rsquo;s Pizza, Austin and the
-            transcript appears here as you talk.
+            Call from any phone. The agent picks up as Tony&rsquo;s Pizza, Austin and the transcript
+            appears here as you talk.
           </p>
         </div>
-        <div
-          aria-hidden
-          className="hidden self-stretch border-l border-border sm:block"
-        />
+        <div aria-hidden className="hidden self-stretch border-l border-border sm:block" />
         <div className="flex flex-col gap-2.5 border-t border-border pt-5 sm:border-t-0 sm:pt-0">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
             Or play a sample
@@ -416,7 +413,11 @@ function ListeningRow() {
 
 function EndedRow({ reason }: { reason: 'hangup' | 'completed' | 'error' }) {
   const label =
-    reason === 'hangup' ? 'Caller hung up' : reason === 'error' ? 'Call ended (error)' : 'Call ended';
+    reason === 'hangup'
+      ? 'Caller hung up'
+      : reason === 'error'
+        ? 'Call ended (error)'
+        : 'Call ended';
   return (
     <li className="grid grid-cols-[64px_1fr] items-start gap-3 pt-1">
       <span className="mt-1 inline-flex items-center justify-self-end font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">

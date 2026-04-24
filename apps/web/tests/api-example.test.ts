@@ -59,9 +59,7 @@ describe('POST /api/calls/example', () => {
 
     const turnEvents = events.filter((e) => e.kind === 'turn.appended');
     expect(turnEvents).toHaveLength(manifest.turns.length);
-    expect(turnEvents.map((e) => e.turn?.speaker)).toEqual(
-      manifest.turns.map((t) => t.speaker),
-    );
+    expect(turnEvents.map((e) => e.turn?.speaker)).toEqual(manifest.turns.map((t) => t.speaker));
 
     // call.ended fires duration_ms + 500 after start. We've only advanced past
     // the last turn so far; finish the buffer to flush it.

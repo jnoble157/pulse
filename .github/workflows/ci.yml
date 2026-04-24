@@ -45,13 +45,15 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile=false
 
-      - name: Typecheck + Lint + Unit
-        run: pnpm check
-
+      # Migrations must run before `pnpm check`: turbo runs @pulse/schema tests
+      # against DATABASE_URL, and RLS tests need the `tenants` table etc.
       - name: Migrate + RLS
         run: pnpm --filter @pulse/schema db:migrate
 
-      - name: RLS test (with DB)
+      - name: Typecheck + Lint + Unit
+        run: pnpm check
+
+      - name: Schema tests (sanity, DB already migrated)
         run: pnpm --filter @pulse/schema test
 
   format:

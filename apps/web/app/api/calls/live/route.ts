@@ -59,7 +59,7 @@ export async function GET(): Promise<Response> {
 
       // Next.js doesn't currently surface a per-request abort signal to
       // ReadableStream.start; we rely on the cancel hook below for cleanup.
-      ;(controller as unknown as { __cleanup?: () => void }).__cleanup = cleanup;
+      (controller as unknown as { __cleanup?: () => void }).__cleanup = cleanup;
     },
     cancel(reason) {
       const cleanup = (this as unknown as { __cleanup?: () => void }).__cleanup;

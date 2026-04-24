@@ -20,7 +20,12 @@ export type TwilioInbound =
   | { event: 'connected'; protocol: string; version: string }
   | { event: 'start'; sequenceNumber: string; start: TwilioStartMeta; streamSid: string }
   | { event: 'media'; sequenceNumber: string; media: TwilioMediaPayload; streamSid: string }
-  | { event: 'stop'; sequenceNumber: string; stop: { accountSid: string; callSid: string }; streamSid: string }
+  | {
+      event: 'stop';
+      sequenceNumber: string;
+      stop: { accountSid: string; callSid: string };
+      streamSid: string;
+    }
   | { event: 'mark'; sequenceNumber: string; mark: { name: string }; streamSid: string };
 
 export type TwilioStartMeta = {

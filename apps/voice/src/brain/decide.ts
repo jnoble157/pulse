@@ -24,9 +24,7 @@ export async function decide(
 ): Promise<AgentTurn> {
   const cacheable = systemPrompt(session);
 
-  const obs = observation
-    ? `\n\nLast tool returned: ${JSON.stringify(observation)}`
-    : '';
+  const obs = observation ? `\n\nLast tool returned: ${JSON.stringify(observation)}` : '';
 
   const dynamic = [
     `Call so far:`,

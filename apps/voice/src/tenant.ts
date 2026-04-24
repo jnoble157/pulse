@@ -7,13 +7,7 @@
  * presents in `customParameters`, but that's a Phase 4 concern.
  */
 import { eq } from 'drizzle-orm';
-import {
-  makeDb,
-  menus,
-  tenants,
-  withAdmin,
-  type MenuItem,
-} from '@pulse/schema';
+import { makeDb, menus, tenants, withAdmin, type MenuItem } from '@pulse/schema';
 import type { TenantContext } from './orchestrator.js';
 
 export async function resolveTenantContext(opts: {
@@ -41,9 +35,7 @@ export async function resolveTenantContext(opts: {
     const items: MenuItem[] = (menu?.items as MenuItem[] | undefined) ?? [];
 
     const voiceCfg = tenant.brand_voice_config as { voice?: string; tone?: string } | null;
-    const brandVoice = voiceCfg
-      ? [voiceCfg.voice, voiceCfg.tone].filter(Boolean).join('. ')
-      : null;
+    const brandVoice = voiceCfg ? [voiceCfg.voice, voiceCfg.tone].filter(Boolean).join('. ') : null;
 
     return {
       tenantId: tenant.id,

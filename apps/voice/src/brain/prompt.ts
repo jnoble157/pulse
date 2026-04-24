@@ -39,7 +39,5 @@ export function systemPrompt(session: CallSession): string {
 }
 
 export function turnsAsTranscript(session: CallSession): string {
-  return session.turns
-    .map((t) => `${t.speaker.toUpperCase()}: ${t.text}`)
-    .join('\n');
+  return session.turns.map((t) => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n');
 }

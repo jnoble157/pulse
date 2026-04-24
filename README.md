@@ -89,16 +89,16 @@ docs/
 
 ## Docs
 
-| Doc | Purpose |
-| --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Invariants + recipes |
-| [`docs/HANDOFF.md`](docs/HANDOFF.md) | Clone → run → handoff |
-| [`docs/DECISIONS.md`](docs/DECISIONS.md) | ADR-038 only (current); older ADRs = git history |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime diagram + files |
-| [`docs/DEMO.md`](docs/DEMO.md) | Walkthrough + ship checklist |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Tokens + mobile + copy |
-| [`docs/SECURITY.md`](docs/SECURITY.md) | RLS, gate, secrets |
-| [`apps/voice/README.md`](apps/voice/README.md) | Voice env + Twilio |
+| Doc                                            | Purpose                                          |
+| ---------------------------------------------- | ------------------------------------------------ |
+| [`AGENTS.md`](AGENTS.md)                       | Invariants + recipes                             |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md)           | Clone → run → handoff                            |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md)       | ADR-038 only (current); older ADRs = git history |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime diagram + files                          |
+| [`docs/DEMO.md`](docs/DEMO.md)                 | Walkthrough + ship checklist                     |
+| [`docs/DESIGN.md`](docs/DESIGN.md)             | Tokens + mobile + copy                           |
+| [`docs/SECURITY.md`](docs/SECURITY.md)         | RLS, gate, secrets                               |
+| [`apps/voice/README.md`](apps/voice/README.md) | Voice env + Twilio                               |
 
 ## Running it
 
@@ -137,23 +137,23 @@ pnpm example-calls:build           # OpenAI TTS + ffmpeg → apps/web/public/exa
 
 ### Minimum env
 
-| Key                         | Why                                                                              |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| `DEMO_PASSWORD`             | Password gate.                                                                   |
-| `DEMO_COOKIE_SECRET`        | HMAC for the gate cookie. Any 32+ byte string.                                   |
-| `TWILIO_PHONE_NUMBER`       | The number rendered on the homepage. Cosmetic if `apps/voice/` isn't deployed.   |
-| `OPENAI_API_KEY`            | Required by `pnpm example-calls:build` (TTS for the sample call audio).          |
-| `LIVE_CALLS_PUSH_TOKEN`     | Bearer token that gates `/api/calls/live/push`. The voice agent sends it.        |
-| `ANTHROPIC_API_KEY`         | `apps/voice/` only — Claude Sonnet 4.5 powers the per-turn decision.             |
-| `DEEPGRAM_API_KEY`          | `apps/voice/` only — streaming STT.                                              |
-| `ELEVENLABS_API_KEY`        | `apps/voice/` only — streaming TTS for the live agent.                           |
-| `ELEVENLABS_VOICE_ID`       | `apps/voice/` only — paid-tier voice id.                                         |
-| `TWILIO_ACCOUNT_SID`        | `apps/voice/` only — needed when the agent dials out / verifies signatures.      |
-| `TWILIO_AUTH_TOKEN`         | `apps/voice/` only.                                                              |
-| `DATABASE_URL`              | Postgres after `pnpm db:migrate`.                                                |
-| `PII_ENCRYPTION_KEY`        | Required by `@pulse/schema` for `pnpm db:migrate` / clients.                     |
-| `PUBLIC_BASE_URL`           | Voice server URL Twilio reaches (defaults to `http://127.0.0.1:8788` for local). |
-| `WEB_BASE_URL`              | Next origin for transcript push (defaults to `http://127.0.0.1:3000`).           |
+| Key                     | Why                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `DEMO_PASSWORD`         | Password gate.                                                                   |
+| `DEMO_COOKIE_SECRET`    | HMAC for the gate cookie. Any 32+ byte string.                                   |
+| `TWILIO_PHONE_NUMBER`   | The number rendered on the homepage. Cosmetic if `apps/voice/` isn't deployed.   |
+| `OPENAI_API_KEY`        | Required by `pnpm example-calls:build` (TTS for the sample call audio).          |
+| `LIVE_CALLS_PUSH_TOKEN` | Bearer token that gates `/api/calls/live/push`. The voice agent sends it.        |
+| `ANTHROPIC_API_KEY`     | `apps/voice/` only — Claude Sonnet 4.5 powers the per-turn decision.             |
+| `DEEPGRAM_API_KEY`      | `apps/voice/` only — streaming STT.                                              |
+| `ELEVENLABS_API_KEY`    | `apps/voice/` only — streaming TTS for the live agent.                           |
+| `ELEVENLABS_VOICE_ID`   | `apps/voice/` only — paid-tier voice id.                                         |
+| `TWILIO_ACCOUNT_SID`    | `apps/voice/` only — needed when the agent dials out / verifies signatures.      |
+| `TWILIO_AUTH_TOKEN`     | `apps/voice/` only.                                                              |
+| `DATABASE_URL`          | Postgres after `pnpm db:migrate`.                                                |
+| `PII_ENCRYPTION_KEY`    | Required by `@pulse/schema` for `pnpm db:migrate` / clients.                     |
+| `PUBLIC_BASE_URL`       | Voice server URL Twilio reaches (defaults to `http://127.0.0.1:8788` for local). |
+| `WEB_BASE_URL`          | Next origin for transcript push (defaults to `http://127.0.0.1:3000`).           |
 
 After a fresh DB, run `pnpm seed:voice` once to create the `tonys-pizza-austin` tenant + menu.
 

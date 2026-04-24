@@ -133,13 +133,7 @@ describe('LiveCallStore', () => {
       reason: 'completed',
     });
 
-    expect(seen).toEqual([
-      'call.started',
-      'turn:agent',
-      'turn:caller',
-      'turn:agent',
-      'call.ended',
-    ]);
+    expect(seen).toEqual(['call.started', 'turn:agent', 'turn:caller', 'turn:agent', 'call.ended']);
   });
 
   test('listener errors do not crash the producer or block other listeners', () => {

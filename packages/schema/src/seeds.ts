@@ -19,7 +19,7 @@ export const SEEDS: Record<string, SeedDescriptor> = {
     timezone: 'America/Chicago',
     cuisine: 'pizza',
     description:
-      "Fictional Austin pizzeria used as the voice demo tenant (menu + brand voice in DB; no synthetic call requirement).",
+      'Fictional Austin pizzeria used as the voice demo tenant (menu + brand voice in DB; no synthetic call requirement).',
     volume: 200,
   },
   'crust-pizza-demo': {

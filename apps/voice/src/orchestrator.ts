@@ -22,12 +22,7 @@
 import type { WebSocket as WsWebSocket } from 'ws';
 import type { MenuItem } from '@pulse/schema';
 import { CallSession } from './session.js';
-import {
-  parseInbound,
-  makeMediaFrame,
-  makeClear,
-  type TwilioInbound,
-} from './audio/twilio.js';
+import { parseInbound, makeMediaFrame, makeClear, type TwilioInbound } from './audio/twilio.js';
 import { muLawToPcm16, pcm16ToMuLaw } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
 import { streamTts, downsample16to8 } from './audio/elevenlabs.js';
@@ -90,7 +85,9 @@ export class Orchestrator {
   private handleStart(frame: Extract<TwilioInbound, { event: 'start' }>): void {
     this.streamSid = frame.streamSid;
     this.callStartMs = Date.now();
-    this.callerNumber = (frame.start as unknown as { customParameters?: { caller?: string }; from?: string }).from ?? null;
+    this.callerNumber =
+      (frame.start as unknown as { customParameters?: { caller?: string }; from?: string }).from ??
+      null;
     this.session = new CallSession({
       callId: frame.start.callSid,
       tenantId: this.tenant.tenantId,
@@ -178,7 +175,12 @@ export class Orchestrator {
         const decideMs = performance.now() - decideStart;
 
         if (turn.action === 'say') {
-          this.session.appendTurn('agent', turn.text, Math.round(this.session.now()), Math.round(this.session.now()));
+          this.session.appendTurn(
+            'agent',
+            turn.text,
+            Math.round(this.session.now()),
+            Math.round(this.session.now()),
+          );
           this.livePush.emit({
             kind: 'turn.appended',
             call_id: this.session.callId,
@@ -189,7 +191,10 @@ export class Orchestrator {
         }
 
         const result = applyTool(this.session, turn);
-        const summary = `[tool:${turn.action}] ${result ? JSON.stringify(result) : ''}`.slice(0, 240);
+        const summary = `[tool:${turn.action}] ${result ? JSON.stringify(result) : ''}`.slice(
+          0,
+          240,
+        );
         this.session.appendTurn(
           'agent',
           summary,
@@ -270,7 +275,9 @@ export class Orchestrator {
         onDone: () => {
           this.speaking = null;
           this.callerFinalAt = null;
-          console.info(`[voice] spoke ${text.length} chars in ${Math.round(performance.now() - startedAt)}ms`);
+          console.info(
+            `[voice] spoke ${text.length} chars in ${Math.round(performance.now() - startedAt)}ms`,
+          );
           resolve();
         },
         onError: (err) => {
@@ -311,7 +318,8 @@ export class Orchestrator {
       kind: 'call.ended',
       call_id: session.callId,
       ended_at: Date.now(),
-      reason: reason === 'twilio_stop' ? 'hangup' : reason === 'agent_ended' ? 'completed' : 'error',
+      reason:
+        reason === 'twilio_stop' ? 'hangup' : reason === 'agent_ended' ? 'completed' : 'error',
     });
     try {
       this.twilioWs.close();
@@ -361,7 +369,9 @@ function summarizeCall(session: CallSession, reason: string): Record<string, unk
   };
 }
 
-function liveActionFor(turn: { action: string } & Record<string, unknown>):
+function liveActionFor(
+  turn: { action: string } & Record<string, unknown>,
+):
   | { kind: 'add_to_cart'; item: string; qty: number }
   | { kind: 'transfer_to_staff'; reason: string }
   | { kind: 'end_call' }
@@ -386,6 +396,6 @@ function liveActionFor(turn: { action: string } & Record<string, unknown>):
 }
 
 function closingLine(terminal: { kind: 'transferred' | 'ended'; reason: string }): string {
-  if (terminal.kind === 'transferred') return 'One sec, I\'m transferring you to a person.';
+  if (terminal.kind === 'transferred') return "One sec, I'm transferring you to a person.";
   return 'Thanks for calling. Have a good one.';
 }

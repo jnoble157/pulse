@@ -35,9 +35,7 @@ const Schema = z.object({
   /** Bearer token verified by the web app's `/api/calls/live/push`. */
   LIVE_CALLS_PUSH_TOKEN: z.string().min(1).optional(),
   PULSE_TENANT_SLUG: z.string().default('tonys-pizza-austin'),
-  AGENT_MODEL: z
-    .enum(['claude-sonnet-4-5', 'claude-haiku-4-5'])
-    .default('claude-sonnet-4-5'),
+  AGENT_MODEL: z.enum(['claude-sonnet-4-5', 'claude-haiku-4-5']).default('claude-sonnet-4-5'),
 });
 
 export type VoiceEnv = z.infer<typeof Schema>;
