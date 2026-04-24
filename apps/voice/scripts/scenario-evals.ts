@@ -46,6 +46,7 @@ type Exchange = {
   decisions: AgentTurn[];
   agentTexts: string[];
   terminal: boolean;
+  duplicateSuccessfulAdd: boolean;
 };
 
 type Step = {
@@ -96,6 +97,19 @@ const SCENARIOS: Scenario[] = [
         checks: [
           notHasDecision('add_to_cart', 'avoid duplicate add_to_cart on completion utterance'),
           hasAgentText(/name|phone/i, 'move to confirmation details'),
+        ],
+      },
+    ],
+  },
+  {
+    id: 'multi-item-no-loop',
+    title: 'Two-item order does not loop duplicate adds',
+    steps: [
+      {
+        caller: "I'll do a medium pepperoni and a large veggie.",
+        checks: [
+          hasDecision('add_to_cart', 'add at least one requested item'),
+          noDuplicateAddForSameItem('avoid repeating the same add_to_cart in one exchange'),
         ],
       },
     ],
@@ -162,6 +176,26 @@ const SCENARIOS: Scenario[] = [
       },
     ],
   },
+  {
+    id: 'name-and-phone-single-utterance',
+    title: 'Single utterance with name and phone should not trigger another phone ask',
+    steps: [
+      {
+        caller: 'One medium cheese pizza.',
+        checks: [hasDecision('add_to_cart', 'add pizza')],
+      },
+      {
+        caller: "That's it. My name is Josh and my number is 724-472-2013.",
+        checks: [
+          hasDecision('end_call', 'close order once both details are provided'),
+          notHasAgentText(
+            /best phone number|phone number to reach|what'?s your phone/i,
+            'avoid re-asking for phone',
+          ),
+        ],
+      },
+    ],
+  },
 ];
 
 async function main(): Promise<void> {
@@ -217,6 +251,8 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
   let observation: ToolResult | undefined;
   const decisions: AgentTurn[] = [];
   const agentTexts: string[] = [];
+  const successfulAdds = new Set<string>();
+  let duplicateSuccessfulAdd = false;
 
   for (let i = 0; i < 8; i++) {
     if (session.terminal) break;
@@ -229,6 +265,11 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
       break;
     }
     const result = applyTool(session, turn);
+    if (turn.action === 'add_to_cart' && result?.kind === 'cart_added') {
+      const key = `${result.item.id}:${result.item.quantity}`;
+      if (successfulAdds.has(key)) duplicateSuccessfulAdd = true;
+      successfulAdds.add(key);
+    }
     if (session.terminal) {
       const text =
         session.terminal.kind === 'ended'
@@ -248,6 +289,7 @@ async function runExchange(session: CallSession, env: VoiceEnv, caller: string):
     decisions,
     agentTexts,
     terminal: Boolean(session.terminal),
+    duplicateSuccessfulAdd,
   };
 }
 
@@ -269,6 +311,11 @@ function hasAgentText(re: RegExp, message: string) {
 function notHasAgentText(re: RegExp, message: string) {
   return (exchange: Exchange): string | null =>
     exchange.agentTexts.some((t) => re.test(t)) ? `expected agent to ${message}` : null;
+}
+
+function noDuplicateAddForSameItem(message: string) {
+  return (exchange: Exchange): string | null =>
+    exchange.duplicateSuccessfulAdd ? `expected ${message}` : null;
 }
 
 function buildVoiceEnv(): VoiceEnv {

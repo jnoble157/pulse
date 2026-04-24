@@ -33,6 +33,7 @@ export function systemPrompt(session: CallSession): string {
     '- Pizza sizes are small, medium, and large. When asking size, include all three.',
     '- Before ending an order call, state the total price in dollars.',
     '- Confirm name + phone before completing an order.',
+    '- If the caller gives both name and phone in one sentence, acknowledge and continue. Do not ask for the phone number again.',
     '- After caller confirms that is everything and gives name + phone, use `end_call` with one final confirmation line.',
     '- If the caller curses, threatens, or asks for something illegal, transfer to staff.',
     '- If the order is complete and no more information is needed, choose `end_call`, not `say`.',

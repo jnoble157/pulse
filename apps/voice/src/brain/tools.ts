@@ -121,9 +121,20 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
       const qty = turn.quantity!;
       const item = session.menu.find((m) => m.id === menuItemId);
       if (!item) return { kind: 'cart_error', reason: `unknown menu_item_id ${menuItemId}` };
+      const latestCallerTurnIndex = findLatestCallerTurnIndex(session);
       const latestCallerText =
         [...session.turns].reverse().find((existingTurn) => existingTurn.speaker === 'caller')
           ?.text ?? '';
+      if (latestCallerTurnIndex != null) {
+        const duplicateForSameUtterance = session.cart.some(
+          (cartItem) =>
+            cartItem.menu_item_id === item.id &&
+            cartItem.transcript_span.turn_index === latestCallerTurnIndex,
+        );
+        if (duplicateForSameUtterance) {
+          return { kind: 'cart_error', reason: 'duplicate_add_for_same_caller_turn' };
+        }
+      }
       if (isCompletionUtterance(latestCallerText)) {
         const existing = session.cart.find((cartItem) => cartItem.menu_item_id === item.id);
         if (existing)
@@ -139,7 +150,11 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
         modifiers: (turn.modifiers ?? []).map((m) => ({ name: m })),
         unit_price_cents: item.price_cents,
         match_confidence: 0.9,
-        transcript_span: { turn_index: session.turns.length, start_ms: 0, end_ms: 0 },
+        transcript_span: {
+          turn_index: latestCallerTurnIndex ?? session.turns.length,
+          start_ms: 0,
+          end_ms: 0,
+        },
       });
       return {
         kind: 'cart_added',
@@ -164,6 +179,11 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
       return { kind: 'ended', reason: r };
     }
   }
+}
+
+function findLatestCallerTurnIndex(session: CallSession): number | null {
+  const latest = [...session.turns].reverse().find((turn) => turn.speaker === 'caller');
+  return latest?.turn_index ?? null;
 }
 
 function requiresPizzaSizeClarification(session: CallSession, itemName: string): boolean {

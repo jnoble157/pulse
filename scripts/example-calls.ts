@@ -76,20 +76,20 @@ const SCENARIOS: Record<string, { caller_voice: string; turns: ScriptedTurn[] }>
     caller_voice: CALLER_VOICE_ORDER,
     turns: [
       { speaker: 'agent', text: "Tony's Pizza, Austin. What can I get started for you?" },
-      { speaker: 'caller', text: 'Hey, can I do a pickup order? One large pepperoni.' },
+      { speaker: 'caller', text: 'Hi, can I place a pickup order?' },
       {
         speaker: 'agent',
-        text: 'Sure thing. One large pepperoni for pickup. Want a salad or any drinks with that?',
+        text: 'Sure thing. We have cheese, pepperoni, and veggie pizzas in small, medium, or large. What would you like?',
       },
-      { speaker: 'caller', text: 'Yeah, a Caesar — no croutons, please.' },
+      { speaker: 'caller', text: 'One medium pepperoni and one large veggie.' },
       {
         speaker: 'agent',
-        text: 'Got it. Large pepperoni and a Caesar, no croutons. Comes to twenty-two fifty, about twenty minutes. Can I grab a name?',
+        text: "Got it. That's one medium pepperoni and one large veggie. Your total is thirty-three ninety-eight. Can I get a name and phone number?",
       },
-      { speaker: 'caller', text: "It's for Mike. M-I-K-E." },
+      { speaker: 'caller', text: "It's for Mike. The number is 512-555-0142." },
       {
         speaker: 'agent',
-        text: 'Thanks Mike. See you in twenty.',
+        text: "Thanks Mike. We'll have that ready for pickup in about 15 minutes.",
       },
     ],
   },

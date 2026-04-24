@@ -155,7 +155,7 @@ export class Orchestrator {
   }): void {
     const text = t.channel.alternatives[0]?.transcript?.trim() ?? '';
     if (!text) return;
-    if (!t.is_final) {
+    if (!t.is_final || !t.speech_final) {
       if (this.speaking && text.length >= 2 && this.greetingDone) this.bargeIn();
       return;
     }
@@ -619,11 +619,21 @@ function callerFirstName(session: CallSession): string | null {
     const cur = session.turns[i]!;
     if (prev.speaker !== 'agent' || cur.speaker !== 'caller') continue;
     if (!/\bname\b/i.test(prev.text)) continue;
-    const candidate = cur.text
-      .replace(/\b(?:yeah|yep|sure|okay|ok|it'?s|this is)\b[,\s]*/gi, '')
-      .replace(/[^A-Za-z\s'-]/g, ' ')
-      .trim()
-      .split(/\s+/)[0];
+    const explicit =
+      cur.text.match(/\bmy name is\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
+      cur.text.match(/\bit'?s\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
+      cur.text.match(/\bthis is\s+([A-Za-z][A-Za-z'-]*)/i)?.[1] ??
+      null;
+    const candidate =
+      explicit ??
+      cur.text
+        .replace(
+          /\b(?:yeah|yep|sure|okay|ok|it'?s|this is|my name is|that'?s it|nope)\b[,\s]*/gi,
+          '',
+        )
+        .replace(/[^A-Za-z\s'-]/g, ' ')
+        .trim()
+        .split(/\s+/)[0];
     if (candidate && candidate.length >= 2) return capitalize(candidate);
   }
   return null;
