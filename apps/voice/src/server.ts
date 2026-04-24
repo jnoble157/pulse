@@ -28,6 +28,20 @@ import { resolveTenantContext } from './tenant.js';
 
 const TENANT_BOOT_TIMEOUT_MS = 90_000;
 
+/** Database segment of a `postgresql://…/dbname` URL (no credentials). */
+function databaseNameFromJdbcUrl(url: string): string | null {
+  try {
+    const q = url.indexOf('?');
+    const base = q === -1 ? url : url.slice(0, q);
+    const slash = base.lastIndexOf('/');
+    if (slash === -1 || slash >= base.length - 1) return null;
+    const name = decodeURIComponent(base.slice(slash + 1));
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function startServer() {
   const e = env();
   const databaseUrl = process.env.DATABASE_URL;
@@ -52,7 +66,8 @@ export async function startServer() {
       );
     } catch (err) {
       tenantError = err instanceof Error ? err.message : String(err);
-      console.error('[voice] tenant load failed:', err);
+      const dbName = databaseNameFromJdbcUrl(databaseUrl);
+      console.error(`[voice] tenant load failed (database=${dbName ?? 'unknown'}):`, err);
     }
   };
 
@@ -73,15 +88,22 @@ export async function startServer() {
 
   app.get('/health', (c) => {
     if (tenantError) {
-      return c.json(
-        {
-          ok: false,
-          ready: false,
-          error: tenantError,
-          hint: 'Fix DATABASE_URL / run pnpm db:migrate && pnpm seed:voice against this database',
-        },
-        503,
-      );
+      const dbName = databaseNameFromJdbcUrl(databaseUrl);
+      const body: Record<string, string | boolean | undefined> = {
+        ok: false,
+        ready: false,
+        error: tenantError,
+        database: dbName ?? undefined,
+        hint: 'Fix DATABASE_URL / run pnpm db:migrate && pnpm seed:voice against this database',
+      };
+      if (
+        dbName === 'postgres' &&
+        /relation ["']?tenants["']? does not exist/i.test(tenantError)
+      ) {
+        body.railway_hint =
+          'Railway Postgres often has two logical DBs: `postgres` (empty) and `railway` (where plugins put data). Point DATABASE_URL at …/railway, redeploy, then re-run migrate+seed if needed.';
+      }
+      return c.json(body, 503);
     }
     if (!tenant) {
       const elapsed = Date.now() - bootStarted;
