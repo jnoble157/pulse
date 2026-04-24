@@ -67,7 +67,10 @@ const SCENARIOS: Scenario[] = [
       {
         caller: "I'd like a pizza for pickup.",
         checks: [
-          hasAgentText(/size/i, 'ask for pizza size'),
+          hasAgentText(
+            /size|what kind|cheese|pepperoni|veggie/i,
+            'ask a clarifying pizza question',
+          ),
           notHasAgentText(/on that medium/i, 'avoid awkward "on that medium" phrasing'),
         ],
       },
@@ -118,11 +121,25 @@ const SCENARIOS: Scenario[] = [
     title: 'Unavailable item asks for an on-menu alternative without adding to cart',
     steps: [
       {
-        caller: 'Can I get a Hawaiian pizza?',
+        caller: 'Can I get a salad?',
         checks: [
           hasAgentText(/don'?t have|not on the menu|don’t have/i, 'say item is unavailable'),
           hasAgentText(/cheese|pepperoni|veggie|what we do have/i, 'offer an on-menu alternative'),
           notHasDecision('add_to_cart', 'do not add unavailable item to cart'),
+        ],
+      },
+    ],
+  },
+  {
+    id: 'size-options-include-small',
+    title: 'Size clarifier includes small medium large',
+    steps: [
+      {
+        caller: "I'll do a pizza with cheese.",
+        checks: [
+          hasAgentText(/small/i, 'include small in size clarification'),
+          hasAgentText(/medium/i, 'include medium in size clarification'),
+          hasAgentText(/large/i, 'include large in size clarification'),
         ],
       },
     ],

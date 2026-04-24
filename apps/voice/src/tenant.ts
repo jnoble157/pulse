@@ -6,7 +6,7 @@
  * tenant). Multi-tenant routing would key off the `To:` number Twilio
  * presents in `customParameters`, but that's a Phase 4 concern.
  */
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { makeDb, menus, tenants, withAdmin, type MenuItem } from '@pulse/schema';
 import type { TenantContext } from './orchestrator.js';
 
@@ -30,8 +30,8 @@ export async function resolveTenantContext(opts: {
     const [menu] = await tx
       .select({ items: menus.items })
       .from(menus)
-      .where(eq(menus.tenant_id, tenant.id))
-      .orderBy(menus.id);
+      .where(and(eq(menus.tenant_id, tenant.id), eq(menus.is_current, true)))
+      .orderBy(desc(menus.version));
     const items: MenuItem[] = (menu?.items as MenuItem[] | undefined) ?? [];
 
     const voiceCfg = tenant.brand_voice_config as { voice?: string; tone?: string } | null;
