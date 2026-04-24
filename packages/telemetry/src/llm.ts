@@ -39,6 +39,12 @@ export function toToolSchema(schema: z.ZodType<unknown>): Record<string, unknown
   // Strip the top-level $schema declaration; Anthropic treats unknown
   // top-level keywords as invalid under strict draft-2020-12 validation.
   const { $schema: _s, definitions: _d, ...clean } = raw;
+  // Anthropic tool `input_schema` must include a top-level `type` field
+  // (`400 tools.0.custom.input_schema.type: Field required`). Zod
+  // discriminated unions emit `anyOf` / `oneOf` without `type` at the root.
+  if (!('type' in clean) && ('anyOf' in clean || 'oneOf' in clean)) {
+    return { type: 'object', ...clean };
+  }
   return clean;
 }
 

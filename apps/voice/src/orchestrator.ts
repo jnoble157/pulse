@@ -83,7 +83,9 @@ export class Orchestrator {
   }
 
   private handleStart(frame: Extract<TwilioInbound, { event: 'start' }>): void {
-    this.streamSid = frame.streamSid;
+    // Twilio usually duplicates streamSid at the root; some paths only set
+    // `start.streamSid`. Without it, greet() bails and the caller hears silence.
+    this.streamSid = frame.streamSid || frame.start.streamSid;
     this.callStartMs = Date.now();
     this.callerNumber =
       (frame.start as unknown as { customParameters?: { caller?: string }; from?: string }).from ??
