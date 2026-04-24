@@ -10,7 +10,7 @@ export type TranscriptTurn = {
   text: string;
   t_ms: number;
   action?:
-    | { kind: 'add_to_cart'; item: string; qty: number }
+    | { kind: 'add_to_cart'; item: string; qty: number; modifiers?: string[] }
     | { kind: 'transfer_to_staff'; reason: string }
     | { kind: 'end_call' }
     | { kind: 'lookup_menu_item'; query: string };

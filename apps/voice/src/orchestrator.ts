@@ -531,7 +531,7 @@ function liveActionFor(
   turn: { action: string } & Record<string, unknown>,
   result: ToolResult | null,
 ):
-  | { kind: 'add_to_cart'; item: string; qty: number }
+  | { kind: 'add_to_cart'; item: string; qty: number; modifiers?: string[] }
   | { kind: 'transfer_to_staff'; reason: string }
   | { kind: 'end_call' }
   | { kind: 'lookup_menu_item'; query: string }
@@ -543,6 +543,7 @@ function liveActionFor(
         kind: 'add_to_cart',
         item: result.item.name,
         qty: Number(turn.quantity ?? 1),
+        modifiers: result.item.modifiers.length > 0 ? result.item.modifiers : undefined,
       };
     case 'transfer_to_staff':
       return { kind: 'transfer_to_staff', reason: String(turn.reason ?? '') };

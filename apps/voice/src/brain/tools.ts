@@ -90,7 +90,10 @@ export type AgentTurn = z.infer<typeof AgentTurnSchema>;
 
 export type ToolResult =
   | { kind: 'menu_match'; items: Array<{ id: string; name: string; price_cents: number }> }
-  | { kind: 'cart_added'; item: { id: string; name: string; quantity: number } }
+  | {
+      kind: 'cart_added';
+      item: { id: string; name: string; quantity: number; modifiers: string[] };
+    }
   | { kind: 'cart_error'; reason: string }
   | { kind: 'wait_time'; minutes: number }
   | { kind: 'transferred'; reason: string }
@@ -140,7 +143,12 @@ export function applyTool(session: CallSession, turn: AgentTurn): ToolResult | n
       });
       return {
         kind: 'cart_added',
-        item: { id: item.id, name: item.name, quantity: qty },
+        item: {
+          id: item.id,
+          name: item.name,
+          quantity: qty,
+          modifiers: [...(turn.modifiers ?? [])],
+        },
       };
     }
     case 'quote_wait_time':

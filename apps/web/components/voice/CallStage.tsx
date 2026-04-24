@@ -397,7 +397,11 @@ function deriveOrderItems(call: LiveCall, lowerTranscript: string): string[] {
   const items = new Map<string, string>();
   for (const turn of call.turns) {
     if (turn.action?.kind === 'add_to_cart') {
-      const value = `${turn.action.qty}x ${turn.action.item}`;
+      const suffix =
+        turn.action.modifiers && turn.action.modifiers.length > 0
+          ? ` (${turn.action.modifiers.join(', ')})`
+          : '';
+      const value = `${turn.action.qty}x ${turn.action.item}${suffix}`;
       items.set(value.toLowerCase(), value);
     }
   }
@@ -766,7 +770,7 @@ function TurnRow({ turn }: { turn: TranscriptTurn }) {
 function ActionChip({ action }: { action: NonNullable<TranscriptTurn['action']> }) {
   const label =
     action.kind === 'add_to_cart'
-      ? `Added to order: ${action.qty}× ${action.item}`
+      ? `Added to order: ${action.qty}× ${action.item}${action.modifiers?.length ? ` (${action.modifiers.join(', ')})` : ''}`
       : action.kind === 'lookup_menu_item'
         ? `Looked up: ${action.query}`
         : action.kind === 'transfer_to_staff'

@@ -42,7 +42,7 @@ export type TranscriptTurn = {
   t_ms: number;
   /** Optional structured action attached to an agent turn. */
   action?:
-    | { kind: 'add_to_cart'; item: string; qty: number }
+    | { kind: 'add_to_cart'; item: string; qty: number; modifiers?: string[] }
     | { kind: 'transfer_to_staff'; reason: string }
     | { kind: 'end_call' }
     | { kind: 'lookup_menu_item'; query: string };

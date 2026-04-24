@@ -26,6 +26,7 @@ const TurnSchema = z
           kind: z.literal('add_to_cart'),
           item: z.string(),
           qty: z.number().int().positive(),
+          modifiers: z.array(z.string()).optional(),
         }),
         z.object({ kind: z.literal('transfer_to_staff'), reason: z.string() }),
         z.object({ kind: z.literal('end_call') }),
