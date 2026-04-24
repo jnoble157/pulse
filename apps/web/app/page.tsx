@@ -92,20 +92,24 @@ function Notes() {
       </header>
       <div className="space-y-4 text-[14.5px] leading-[1.6] text-text-secondary">
         <p>
-          The agent uses Twilio for the phone path, Deepgram Nova-3 for streaming speech, Claude
-          Sonnet 4.5 for the per-turn decision, and ElevenLabs Flash v2.5 for the voice. The whole
-          loop runs in a Node service in <code>apps/voice/</code>.
+          It&rsquo;s four pieces glued together: Twilio for the phone, Deepgram Nova-3 for streaming
+          speech-to-text, Claude Sonnet 4.5 for the per-turn decision (one structured action: say,
+          add_to_cart, lookup_menu_item, transfer, end), and ElevenLabs Flash v2.5 for the voice
+          back. The whole loop is a small Node service in <code>apps/voice/</code>.
         </p>
         <p>
-          The two samples are pre-recorded so the page works even if the live agent isn&rsquo;t
-          reachable. The &ldquo;allergy&rdquo; one is the example that mattered to me to get right:
-          agents that confidently mis-answer an allergy question are a real problem. This one says
-          the truth and offers a callback from a person.
+          The interesting bits are mostly about what shouldn&rsquo;t happen: the agent
+          shouldn&rsquo;t talk over you, cut you off mid-thought, or quote a price it made up.
+          Endpointing is Deepgram&rsquo;s UtteranceEnd plus a short hold on trail-off finals
+          (&ldquo;I&rsquo;ll do a&hellip;&rdquo;). Pricing comes from the actual cart, whose running
+          subtotal is injected into the prompt every turn so the LLM can&rsquo;t invent one.
+          Allergens and anything dietary go to a human, not the model.
         </p>
         <p>
-          A few things this demo does <em>not</em> do today: it doesn&rsquo;t record audio, it only
-          handles English, and Tony&rsquo;s Pizza is fictional so the menu is small. Happy to walk
-          through any of it.
+          Out of scope: multi-tenancy, real menu and POS sync, card capture, audio recording,
+          anything other than English. Endpointing still misses edges when a caller pauses
+          mid-sentence, which is the next thing I&rsquo;d harden. Code is all in this repo, happy to
+          walk through any part of it.
         </p>
       </div>
     </section>
