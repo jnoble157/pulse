@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { makeDb, menus, tenants, withAdmin, type MenuItem } from '../src/index.js';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// scripts/ → schema/ → packages/ → repo root (for optional .env load)
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 try {
   process.loadEnvFile(resolve(repoRoot, '.env'));
 } catch {

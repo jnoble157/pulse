@@ -53,13 +53,15 @@ Think of **three boxes**: (1) **Postgres** = where Tony’s menu and tenant row 
 
 **Railway’s job** is to run box (2) and optionally host box (1). You connect GitHub so every push can rebuild the Docker image. You add Postgres so the agent has a real database in the cloud. You copy **secrets** (API keys, one shared `LIVE_CALLS_PUSH_TOKEN`) into Railway’s environment so the container starts. You click **Generate domain** so box (2) gets a permanent `https://…` URL—that URL is what you paste into Twilio and into `PUBLIC_BASE_URL`.
 
+**If the dashboard shows “0 Variables” on the Pulse service**, the container will exit immediately during env validation (missing `ANTHROPIC_API_KEY`, etc.). The Docker build can succeed while the **deploy / healthcheck** still fails. Open **Variables** on the **same service** that runs the Dockerfile and add every row from step 3 below, including **`DATABASE_URL`** (use Railway’s “Variable Reference” to pull it from the Postgres plugin if you prefer).
+
 **Twilio’s job** is: when someone dials your number, Twilio opens an HTTPS request to your Railway URL (`/twilio/voice`) and then a **WebSocket** for raw audio. None of that works if the URL is still `localhost`.
 
 **Your laptop’s job** (once): run **migrations + seed** against the **Railway** Postgres URL so the `tenants` / menu tables exist before the voice service boots. After that, day‑to‑day is just Railway + Vercel env vars and redeploys.
 
 ### After Railway is green: Twilio webhook (order of operations)
 
-- Confirm the voice service is **deployed** and `curl https://<railway-host>/health` returns JSON with `"ok":true`.
+- Confirm the voice service is **deployed** and `curl -sS https://<railway-host>/health` returns JSON with `"ok":true` and ideally `"ready":true` (after migrations + seed, see step 2). `"ready":false` for a few seconds right after boot is normal.
 - Twilio Console → **Phone numbers** → your number → **Voice & Fax** (or “Configure”) → **A call comes in** → **Webhook** (not TwiML Bin unless you know you need that) → URL: `https://<railway-host>/twilio/voice` → HTTP **POST** → Save.
 - **Trial accounts** may ask the caller to press a key before your app runs; upgrading Twilio removes that.
 

@@ -13,14 +13,22 @@ import path from 'node:path';
 import { sql } from 'drizzle-orm';
 import { allRlsStatements } from '../rls.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '../../../../');
+
+try {
+  process.loadEnvFile(path.resolve(repoRoot, '.env'));
+} catch {
+  /* CI and one-off shells set DATABASE_URL in the environment */
+}
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error('DATABASE_URL is not set.');
   process.exit(1);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const migrationsFolder = path.resolve(__dirname, '../../../../infra/drizzle');
 
 async function main() {

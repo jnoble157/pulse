@@ -48,11 +48,11 @@
     "build": "tsc --build",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --conditions=development --env-file=../../.env src/cli/migrate.ts",
+    "db:migrate": "tsx --conditions=development src/cli/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:rls": "tsx --conditions=development src/cli/apply-rls.ts",
-    "seed:voice": "tsx --conditions=development --env-file=../../.env scripts/seed-voice-tenant.ts"
+    "seed:voice": "tsx --conditions=development scripts/seed-voice-tenant.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.38.3",

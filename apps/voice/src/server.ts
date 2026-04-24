@@ -2,7 +2,7 @@
  * HTTP + WebSocket server for the voice agent.
  *
  * Routes:
- *   - GET  /health                — liveness probe
+ *   - GET  /health                — liveness (always binds TCP); `ready` when DB tenant loaded
  *   - POST /twilio/voice          — Twilio webhook on incoming call. Returns
  *                                   TwiML that opens a Media Stream against
  *                                   wss://<PUBLIC_BASE_URL>/twilio/media.
@@ -12,6 +12,11 @@
  * Twilio dials our `/twilio/voice` webhook synchronously; we respond with
  * TwiML, Twilio reads it, then opens the WebSocket to `/twilio/media`. From
  * that point on it's a streaming bidirectional bridge.
+ *
+ * Tenant context loads **after** the HTTP server starts so platforms (e.g.
+ * Railway) that probe `/health` on PORT see a TCP listener immediately. If
+ * migrations are not applied yet, `/health` returns `ready: false` until the
+ * tenant row exists or a timeout elapses.
  */
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
@@ -21,6 +26,8 @@ import { env } from './env.js';
 import { Orchestrator, type TenantContext } from './orchestrator.js';
 import { resolveTenantContext } from './tenant.js';
 
+const TENANT_BOOT_TIMEOUT_MS = 90_000;
+
 export async function startServer() {
   const e = env();
   const databaseUrl = process.env.DATABASE_URL;
@@ -29,20 +36,34 @@ export async function startServer() {
     process.exit(1);
   }
 
-  // Resolve tenant once at boot. Re-resolve on the next call after a SIGHUP
-  // if you change the menu and want it to land without a restart.
-  let tenant: TenantContext = await resolveTenantContext({
-    databaseUrl,
-    tenantSlug: e.PULSE_TENANT_SLUG,
-  });
-  console.info(
-    `[voice] tenant=${tenant.tenantSlug} menu_items=${tenant.menu.length} model=${e.AGENT_MODEL}`,
-  );
+  let tenant: TenantContext | null = null;
+  let tenantError: string | null = null;
+  const bootStarted = Date.now();
+
+  const loadTenant = async () => {
+    try {
+      const ctx = await resolveTenantContext({
+        databaseUrl,
+        tenantSlug: e.PULSE_TENANT_SLUG,
+      });
+      tenant = ctx;
+      console.info(
+        `[voice] tenant=${ctx.tenantSlug} menu_items=${ctx.menu.length} model=${e.AGENT_MODEL}`,
+      );
+    } catch (err) {
+      tenantError = err instanceof Error ? err.message : String(err);
+      console.error('[voice] tenant load failed:', err);
+    }
+  };
+
+  void loadTenant();
+
   process.on('SIGHUP', () => {
     void resolveTenantContext({ databaseUrl, tenantSlug: e.PULSE_TENANT_SLUG })
       .then((next) => {
         tenant = next;
-        console.info(`[voice] reloaded tenant context (${tenant.menu.length} menu items)`);
+        tenantError = null;
+        console.info(`[voice] reloaded tenant context (${next.menu.length} menu items)`);
       })
       .catch((err) => console.warn('[voice] SIGHUP reload failed:', err));
   });
@@ -50,9 +71,45 @@ export async function startServer() {
   const app = new Hono();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
-  app.get('/health', (c) => c.json({ ok: true, tenant: tenant.tenantSlug }));
+  app.get('/health', (c) => {
+    if (tenantError) {
+      return c.json(
+        {
+          ok: false,
+          ready: false,
+          error: tenantError,
+          hint: 'Fix DATABASE_URL / run pnpm db:migrate && pnpm seed:voice against this database',
+        },
+        503,
+      );
+    }
+    if (!tenant) {
+      const elapsed = Date.now() - bootStarted;
+      if (elapsed > TENANT_BOOT_TIMEOUT_MS) {
+        return c.json(
+          {
+            ok: false,
+            ready: false,
+            error: 'tenant_boot_timeout',
+            hint: `No tenant after ${TENANT_BOOT_TIMEOUT_MS}ms — run pnpm seed:voice for slug ${e.PULSE_TENANT_SLUG}`,
+          },
+          503,
+        );
+      }
+      return c.json({ ok: true, ready: false, tenant_slug: e.PULSE_TENANT_SLUG }, 200);
+    }
+    return c.json({ ok: true, ready: true, tenant: tenant.tenantSlug }, 200);
+  });
 
   app.post('/twilio/voice', (c) => {
+    if (!tenant) {
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Sorry, the line is not ready yet. Please try again in a minute.</Say>
+</Response>`;
+      c.header('content-type', 'text/xml');
+      return c.body(twiml);
+    }
     const wsUrl = `${e.PUBLIC_BASE_URL.replace(/^http/, 'ws')}/twilio/media`;
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -68,8 +125,11 @@ export async function startServer() {
     '/twilio/media',
     upgradeWebSocket(() => ({
       onOpen(_evt, ws) {
-        // Orchestrator owns the lifecycle from here. Reference held by the
-        // event handlers it attaches to ws; we don't need to retain it.
+        if (!tenant) {
+          console.warn('[voice] media socket opened before tenant ready; closing');
+          ws.close();
+          return;
+        }
         new Orchestrator(ws.raw as unknown as WsWebSocket, tenant, e);
       },
     })),
