@@ -127,7 +127,7 @@ Use this if you prefer a single checklist over the six bullets above.
 
 9. **Twilio.** [Twilio Console](https://console.twilio.com) → **Phone Numbers** → **Manage** → Active Numbers → your number → **Voice Configuration** → **A call comes in** → **Webhook** → URL `https://<your-railway-host>/twilio/voice`, HTTP **POST** → Save.
 
-10. **Vercel (or other web host).** Project → **Settings** → **Environment Variables** → add `LIVE_CALLS_PUSH_TOKEN` with the **same** string as Railway. Redeploy the frontend. The voice service already has `WEB_BASE_URL` pointing at this site so `POST …/api/calls/live/push` hits production.
+10. **Vercel (or other web host).** Create the project from this repo with **Root Directory** set to **`apps/web`** (the Next.js site). If Vercel’s root is `apps/voice` or the repo root, installs will not see `next` in that folder’s `package.json` and the build will fail. Project → **Settings** → **Environment Variables** → add `LIVE_CALLS_PUSH_TOKEN` with the **same** string as Railway. Redeploy the frontend. The voice service already has `WEB_BASE_URL` pointing at this site so `POST …/api/calls/live/push` hits production.
 
 11. **Smoke test.** Open the live site, dial the Twilio number, say a short line; transcript lines should appear within a turn or two. If Twilio plays “configure URL” or 404, the webhook URL or `PUBLIC_BASE_URL` / TLS path is wrong—re-check steps 7–9.
 

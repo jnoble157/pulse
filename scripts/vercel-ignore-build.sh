@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Vercel "Ignored Build Step": exit 0 = skip deployment, exit 1 = run build.
-# See vercel.json ignoreCommand (must stay short; Vercel caps ignoreCommand at 256 chars).
+# See apps/web/vercel.json ignoreCommand (must stay short; Vercel caps ignoreCommand at 256 chars).
 
 set -euo pipefail
 
@@ -14,7 +14,6 @@ fi
 if git diff --quiet HEAD~1 HEAD -- \
   apps/web \
   packages \
-  vercel.json \
   turbo.json \
   package.json \
   pnpm-lock.yaml \

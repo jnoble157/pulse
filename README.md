@@ -118,7 +118,7 @@ Open <http://localhost:3000>. Hit the password gate. You get the Twilio number a
 
 **Sample calls:** the transcript streams over the same SSE channel as a real call. You need the MP3s once: `pnpm example-calls:build` (OpenAI TTS + ffmpeg). Without them, the buttons return a clear error until you run that command.
 
-**Live calls (deployed):** the voice service ships to Railway via [`apps/voice/Dockerfile`](apps/voice/Dockerfile) + [`railway.json`](railway.json); the web app stays on Vercel. Walkthrough lives in [`apps/voice/README.md` § Deploy to Railway in 5 minutes](apps/voice/README.md#deploy-to-railway-in-5-minutes).
+**Live calls (deployed):** the voice service ships to Railway via [`apps/voice/Dockerfile`](apps/voice/Dockerfile) + [`railway.json`](railway.json); the web app stays on Vercel. In the Vercel project, set **Root Directory** to **`apps/web`** (see [`apps/web/vercel.json`](apps/web/vercel.json)); pointing at `apps/voice` or the repo root will not find Next.js. Walkthrough lives in [`apps/voice/README.md` § Deploy to Railway in 5 minutes](apps/voice/README.md#deploy-to-railway-in-5-minutes).
 
 **Live calls (local):** set the same `LIVE_CALLS_PUSH_TOKEN` in `.env` for both processes, then expose the voice port over ngrok and point Twilio at it (URL changes every restart, so this is for spot-tests only):
 
