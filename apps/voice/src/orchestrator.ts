@@ -244,11 +244,21 @@ export class Orchestrator {
             },
           });
         }
-        if (this.session.terminal) {
-          const line = withOrderTotal(
-            this.session,
-            turn.text?.trim() || closingLine(this.session.terminal),
-          );
+        const terminalKind =
+          result?.kind === 'ended'
+            ? 'ended'
+            : result?.kind === 'transferred'
+              ? 'transferred'
+              : null;
+        if (terminalKind) {
+          const line =
+            terminalKind === 'ended'
+              ? finalOrderCloseout(this.session, turn.text?.trim())
+              : turn.text?.trim() ||
+                closingLine({
+                  kind: terminalKind,
+                  reason: result?.kind === 'transferred' ? result.reason : '',
+                });
           this.livePush.emit({
             kind: 'turn.appended',
             call_id: this.session.callId,
@@ -297,7 +307,7 @@ export class Orchestrator {
       if (this.pendingDecide) {
         this.pendingDecide = false;
         void this.runDecideLoop();
-      } else if (this.session?.terminal) {
+      } else if (this.session?.terminal?.kind === 'ended') {
         await this.shutdown('agent_ended');
       }
     }
@@ -574,13 +584,45 @@ function closingLine(terminal: { kind: 'transferred' | 'ended'; reason: string }
   return 'Thanks for calling. Have a good one.';
 }
 
-function withOrderTotal(session: CallSession, line: string): string {
-  if (session.cart.length === 0) return line;
-  if (/(\$\s?\d+(\.\d{2})?)|total\b/i.test(line)) return line;
+function finalOrderCloseout(session: CallSession, suggested: string | undefined): string {
+  if (session.cart.length === 0) return suggested || 'Thanks for calling. Have a good one.';
+  const items = session.cart
+    .map((item) => `${item.quantity} ${item.item_name_spoken}`)
+    .join(', ')
+    .trim();
   const totalCents = session.cart.reduce(
     (sum, item) => sum + (item.unit_price_cents ?? 0) * item.quantity,
     0,
   );
-  if (!Number.isFinite(totalCents) || totalCents <= 0) return line;
-  return `${line} Your total is $${(totalCents / 100).toFixed(2)}.`;
+  const total =
+    Number.isFinite(totalCents) && totalCents > 0 ? `$${(totalCents / 100).toFixed(2)}` : null;
+  const firstName = callerFirstName(session);
+  return [
+    firstName ? `Thanks ${firstName}.` : 'Thanks for calling.',
+    `We have ${items} for pickup.`,
+    total ? `Your total is ${total}.` : null,
+    'It will be ready in about 15 minutes.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function callerFirstName(session: CallSession): string | null {
+  for (let i = 1; i < session.turns.length; i++) {
+    const prev = session.turns[i - 1]!;
+    const cur = session.turns[i]!;
+    if (prev.speaker !== 'agent' || cur.speaker !== 'caller') continue;
+    if (!/\bname\b/i.test(prev.text)) continue;
+    const candidate = cur.text
+      .replace(/\b(?:yeah|yep|sure|okay|ok|it'?s|this is)\b[,\s]*/gi, '')
+      .replace(/[^A-Za-z\s'-]/g, ' ')
+      .trim()
+      .split(/\s+/)[0];
+    if (candidate && candidate.length >= 2) return capitalize(candidate);
+  }
+  return null;
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }

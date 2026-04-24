@@ -143,5 +143,17 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 }
 
 function normalizeSpeechText(text: string): string {
-  return text.replace(/!+/g, '.');
+  const normalizedPunctuation = text.replace(/!+/g, '.');
+  return normalizedPunctuation.replace(/\$(\d+)(?:\.(\d{1,2}))?/g, (_match, dollars, cents) => {
+    const d = Number.parseInt(String(dollars), 10);
+    const c = Number.parseInt(
+      String(cents ?? '0')
+        .padEnd(2, '0')
+        .slice(0, 2),
+      10,
+    );
+    if (!Number.isFinite(d)) return _match;
+    if (c <= 0) return `${d} dollars`;
+    return `${d} dollars and ${c} cents`;
+  });
 }

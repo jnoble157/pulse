@@ -5,7 +5,7 @@
  * before sending). Settings chosen for low-latency turn detection:
  *   - `interim_results=true` so we can detect the caller starting to speak
  *     mid-agent-turn (barge-in trigger).
- *   - `endpointing=200` for a 200ms tail-of-silence end-of-utterance signal.
+ *   - `endpointing=350` to reduce caller cutoffs on brief pauses.
  *   - `smart_format=true` for punctuation + numerals.
  *   - `keyterm` boosted with the tenant menu for accuracy on item names.
  *
@@ -42,7 +42,7 @@ export class DeepgramSession {
     url.searchParams.set('sample_rate', '16000');
     url.searchParams.set('channels', '1');
     url.searchParams.set('interim_results', 'true');
-    url.searchParams.set('endpointing', '200');
+    url.searchParams.set('endpointing', '350');
     url.searchParams.set('smart_format', 'true');
     url.searchParams.set('language', opts.language ?? 'en-US');
     for (const k of opts.keyterms ?? []) url.searchParams.append('keyterm', k);
