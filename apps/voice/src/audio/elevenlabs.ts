@@ -3,9 +3,10 @@
  *
  * We open a websocket per turn (the connection cost is ~50ms; cheaper than
  * keeping one open across turns and dealing with state desync on barge-in).
- * Output format is `pcm_16000` so we can downsample to 8kHz μ-law before
- * forwarding to Twilio. The first audio chunk back is the latency we publish
- * in DEMO.md §3.
+ * Output format is `ulaw_8000` so payloads match Twilio Media Streams
+ * (μ-law @ 8 kHz) without resampling. Query `auto_mode=true` avoids the default
+ * chunk-length buffer that can block first audio on short lines. The first
+ * audio chunk back is the latency we publish in DEMO.md §3.
  *
  * Reference: https://elevenlabs.io/docs/api-reference/text-to-speech-websockets
  */
@@ -16,24 +17,28 @@ export type TtsOptions = {
   voiceId: string;
   modelId: string;
   text: string;
-  /** Called for every audio chunk (linear16 @ 16kHz, little-endian). */
-  onChunk: (pcm16: Buffer) => void;
+  /** Called for every audio chunk (μ-law @ 8 kHz, ready for Twilio `media.payload`). */
+  onChunk: (mulaw: Buffer) => void;
   onFirstChunk?: () => void;
   onDone?: () => void;
   onError?: (err: Error) => void;
 };
 
 export function streamTts(opts: TtsOptions): { cancel: () => void } {
-  const url = `wss://api.elevenlabs.io/v1/text-to-speech/${opts.voiceId}/stream-input?model_id=${opts.modelId}&output_format=pcm_16000`;
+  const q = new URLSearchParams({
+    model_id: opts.modelId,
+    output_format: 'ulaw_8000',
+    auto_mode: 'true',
+  });
+  const url = `wss://api.elevenlabs.io/v1/text-to-speech/${opts.voiceId}/stream-input?${q}`;
   const ws = new WebSocket(url, { headers: { 'xi-api-key': opts.apiKey } });
   let cancelled = false;
   let firstChunkSeen = false;
 
   ws.on('open', () => {
     if (cancelled) return ws.close();
-    // Default ElevenLabs chunk_length_schedule waits for ~120 chars before the
-    // first audio chunk — short agent lines never play. Use 50 (API min) and
-    // flush so short greetings / tool replies still synthesize.
+    // `generation_config` still helps when auto_mode is off on older accounts;
+    // 50 is the API minimum per docs.
     ws.send(
       JSON.stringify({
         text: ' ',
@@ -43,7 +48,12 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
     );
     const chunk = `${opts.text.endsWith(' ') ? opts.text : `${opts.text} `}`;
     ws.send(JSON.stringify({ text: chunk, flush: true }));
-    ws.send(JSON.stringify({ text: '' }));
+    // End-of-input must run after flush is queued; an immediate `{ text: '' }`
+    // can be processed before flush and truncate short turns to zero audio.
+    setImmediate(() => {
+      if (cancelled || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ text: '' }));
+    });
   });
 
   ws.on('message', (data) => {
@@ -55,12 +65,14 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
       return;
     }
     if (json?.audio) {
-      const pcm = Buffer.from(json.audio, 'base64');
-      if (!firstChunkSeen) {
-        firstChunkSeen = true;
-        opts.onFirstChunk?.();
+      const mulaw = Buffer.from(json.audio, 'base64');
+      if (mulaw.length > 0) {
+        if (!firstChunkSeen) {
+          firstChunkSeen = true;
+          opts.onFirstChunk?.();
+        }
+        opts.onChunk(mulaw);
       }
-      opts.onChunk(pcm);
     }
     if (json?.isFinal) {
       opts.onDone?.();

@@ -23,9 +23,9 @@ import type { WebSocket as WsWebSocket } from 'ws';
 import type { MenuItem } from '@pulse/schema';
 import { CallSession } from './session.js';
 import { parseInbound, makeMediaFrame, makeClear, type TwilioInbound } from './audio/twilio.js';
-import { muLawToPcm16, pcm16ToMuLaw } from './audio/codec.js';
+import { muLawToPcm16 } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
-import { streamTts, downsample16to8 } from './audio/elevenlabs.js';
+import { streamTts } from './audio/elevenlabs.js';
 import { decide } from './brain/decide.js';
 import { applyTool, type ToolResult } from './brain/tools.js';
 import { LivePushClient } from './live-push.js';
@@ -118,7 +118,8 @@ export class Orchestrator {
   private handleMedia(frame: Extract<TwilioInbound, { event: 'media' }>): void {
     if (!this.deepgram) return;
     const tr = frame.media.track;
-    if (tr === 'outbound') return;
+    // Twilio uses `inbound` / `outbound` in examples; skip any outbound track.
+    if (tr && String(tr).toLowerCase().includes('outbound')) return;
     const mu = Buffer.from(frame.media.payload, 'base64');
     const pcm8 = muLawToPcm16(mu);
     const pcm16 = upsample8to16(pcm8);
@@ -268,10 +269,8 @@ export class Orchestrator {
             });
           }
         },
-        onChunk: (pcm16) => {
-          const pcm8 = downsample16to8(pcm16);
-          const mu = pcm16ToMuLaw(pcm8);
-          this.twilioWs.send(makeMediaFrame(this.streamSid!, mu.toString('base64')));
+        onChunk: (mulaw) => {
+          this.twilioWs.send(makeMediaFrame(this.streamSid!, mulaw.toString('base64')));
         },
         onDone: () => {
           this.speaking = null;
