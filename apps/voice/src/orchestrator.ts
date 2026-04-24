@@ -538,9 +538,10 @@ function liveActionFor(
   | undefined {
   switch (turn.action) {
     case 'add_to_cart':
+      if (result?.kind !== 'cart_added') return undefined;
       return {
         kind: 'add_to_cart',
-        item: result?.kind === 'cart_added' ? result.item.name : String(turn.menu_item_id ?? ''),
+        item: result.item.name,
         qty: Number(turn.quantity ?? 1),
       };
     case 'transfer_to_staff':

@@ -433,8 +433,18 @@ function deriveOrderTotal(transcript: string, lowerTranscript: string): string |
 
 function deriveCustomerDetails(call: LiveCall): string[] {
   const details: string[] = [];
-  const name = findCallerName(call);
+  let name = findCallerName(call);
   const phone = findPhoneNumber(call);
+  if (name) {
+    name = stripTrailingPhone(name);
+    if (phone) {
+      const nameDigits = phoneDigits(name);
+      const phoneOnly = phoneDigits(phone);
+      if (nameDigits.length > 0 && (nameDigits === phoneOnly || phoneOnly.includes(nameDigits))) {
+        name = '';
+      }
+    }
+  }
   if (name) details.push(name);
   if (phone) details.push(phone);
   return details;
@@ -466,6 +476,14 @@ function extractNameFragment(text: string): string {
         })();
   return beforePhone
     .replace(/[,:-]?\s*(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\s*$/g, '')
+    .replace(/[,:-]?\s*[\d().\s-]{7,}\s*$/g, '')
+    .trim();
+}
+
+function stripTrailingPhone(text: string): string {
+  return text
+    .replace(/[,:-]?\s*(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\s*$/g, '')
+    .replace(/[,:-]?\s*[\d().\s-]{7,}\s*$/g, '')
     .trim();
 }
 
@@ -716,6 +734,8 @@ function CallInsights({ call }: { call: LiveCall | null }) {
 function TurnRow({ turn }: { turn: TranscriptTurn }) {
   const isAgent = turn.speaker === 'agent';
   const hasText = turn.text.trim().length > 0;
+  const visibleAction = turn.action?.kind === 'end_call' ? undefined : turn.action;
+  if (!hasText && !visibleAction) return null;
   return (
     <li className="grid grid-cols-[64px_1fr] items-start gap-3">
       <span
@@ -737,14 +757,13 @@ function TurnRow({ turn }: { turn: TranscriptTurn }) {
             {turn.text}
           </p>
         ) : null}
-        {turn.action ? <ActionChip action={turn.action} /> : null}
+        {visibleAction ? <ActionChip action={visibleAction} /> : null}
       </div>
     </li>
   );
 }
 
 function ActionChip({ action }: { action: NonNullable<TranscriptTurn['action']> }) {
-  if (action.kind === 'end_call') return null;
   const label =
     action.kind === 'add_to_cart'
       ? `Added to order: ${action.qty}× ${action.item}`
