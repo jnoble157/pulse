@@ -1,0 +1,47 @@
+{
+  "name": "@pulse/telemetry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./llm": {
+      "development": "./src/llm.ts",
+      "default": "./dist/llm.js"
+    },
+    "./cost": {
+      "development": "./src/cost.ts",
+      "default": "./dist/cost.js"
+    },
+    "./braintrust": {
+      "development": "./src/braintrust.ts",
+      "default": "./dist/braintrust.js"
+    },
+    "./logger": {
+      "development": "./src/logger.ts",
+      "default": "./dist/logger.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --build",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "braintrust": "^0.0.193",
+    "openai": "^4.77.3",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

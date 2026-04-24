@@ -1,0 +1,70 @@
+{
+  "name": "@pulse/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./db": {
+      "development": "./src/db.ts",
+      "default": "./dist/db.js"
+    },
+    "./extraction": {
+      "development": "./src/extraction.ts",
+      "default": "./dist/extraction.js"
+    },
+    "./ingest": {
+      "development": "./src/ingest.ts",
+      "default": "./dist/ingest.js"
+    },
+    "./pii": {
+      "development": "./src/pii.ts",
+      "default": "./dist/pii.js"
+    },
+    "./providers/*": {
+      "development": "./src/providers/*.ts",
+      "default": "./dist/providers/*.js"
+    },
+    "./seeds": {
+      "development": "./src/seeds.ts",
+      "default": "./dist/seeds.js"
+    },
+    "./tenant": {
+      "development": "./src/tenant.ts",
+      "default": "./dist/tenant.js"
+    },
+    "./rls": {
+      "development": "./src/rls.ts",
+      "default": "./dist/rls.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --build",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --conditions=development --env-file=../../.env src/cli/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:rls": "tsx --conditions=development src/cli/apply-rls.ts",
+    "seed:voice": "tsx --conditions=development --env-file=../../.env scripts/seed-voice-tenant.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.38.3",
+    "libphonenumber-js": "^1.11.17",
+    "postgres": "^3.4.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "drizzle-kit": "^0.30.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

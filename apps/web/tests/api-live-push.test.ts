@@ -1,0 +1,96 @@
+/**
+ * /api/calls/live/push is the only ingress for transcript events from
+ * apps/voice. The bearer-token gate is the only thing keeping a public Vercel
+ * URL from being a write-anywhere SSE source. Failing this test = the demo
+ * page can be poisoned by anyone with curl.
+ */
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
+const TOKEN = 'test-token-' + Math.random().toString(36).slice(2);
+
+beforeEach(() => {
+  vi.resetModules();
+  process.env.LIVE_CALLS_PUSH_TOKEN = TOKEN;
+  (globalThis as { __pulseLiveCallStore?: unknown }).__pulseLiveCallStore = undefined;
+});
+
+afterEach(() => {
+  delete process.env.LIVE_CALLS_PUSH_TOKEN;
+  (globalThis as { __pulseLiveCallStore?: unknown }).__pulseLiveCallStore = undefined;
+});
+
+async function importRoute() {
+  return await import('../app/api/calls/live/push/route');
+}
+
+function jsonRequest(body: unknown, headers: Record<string, string> = {}): Request {
+  return new Request('http://localhost/api/calls/live/push', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+describe('POST /api/calls/live/push', () => {
+  test('rejects unauthenticated requests with 401', async () => {
+    const { POST } = await importRoute();
+    const res = await POST(
+      jsonRequest({
+        kind: 'call.started',
+        call_id: 'c1',
+        started_at: Date.now(),
+        source: 'twilio',
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test('rejects wrong bearer with 401', async () => {
+    const { POST } = await importRoute();
+    const res = await POST(
+      jsonRequest(
+        {
+          kind: 'call.started',
+          call_id: 'c1',
+          started_at: Date.now(),
+          source: 'twilio',
+        },
+        { authorization: 'Bearer wrong' },
+      ),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test('accepts valid bearer + payload with 204 and emits the event', async () => {
+    const { POST } = await importRoute();
+    const store = await import('../lib/live-calls');
+
+    const seen: { kind: string }[] = [];
+    store.subscribeCallEvents((event) => seen.push(event));
+
+    const res = await POST(
+      jsonRequest(
+        {
+          kind: 'call.started',
+          call_id: 'c1',
+          started_at: 1,
+          source: 'twilio',
+        },
+        { authorization: `Bearer ${TOKEN}` },
+      ),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([expect.objectContaining({ kind: 'call.started' })]);
+  });
+
+  test('rejects malformed payload with 400', async () => {
+    const { POST } = await importRoute();
+    const res = await POST(
+      jsonRequest(
+        { kind: 'call.started' /* missing call_id, started_at, source */ },
+        { authorization: `Bearer ${TOKEN}` },
+      ),
+    );
+    expect(res.status).toBe(400);
+  });
+});

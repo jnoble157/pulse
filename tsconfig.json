@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/schema" },
+    { "path": "./packages/telemetry" },
+    { "path": "./packages/prompts" },
+    { "path": "./packages/extraction" },
+    { "path": "./packages/guest-graph" },
+    { "path": "./packages/insights" },
+    { "path": "./packages/generator" },
+    { "path": "./packages/evals" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" },
+    { "path": "./apps/workers" },
+    { "path": "./apps/voice" },
+    { "path": "./demos" }
+  ]
+}

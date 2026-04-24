@@ -1,0 +1,67 @@
+# Env files — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+!.env.example
+*.pem
+.id_rsa
+*.p12
+
+# Node / pnpm
+node_modules/
+.pnpm-store/
+.pnpm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds
+**/.next/
+out/
+**/dist/
+build/
+.turbo/
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing / coverage
+coverage/
+.nyc_output/
+.vitest/
+.tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+*.swp
+*.swo
+
+# Local DB data
+pgdata/
+*.sqlite
+*.sqlite-journal
+
+# Inngest local dev
+.inngest/
+
+# Logs
+*.log
+logs/
+
+# Local notes / scratch
+docs/scratch.md
+docs/notes/
+.scratch/
+
+# Tooling / local IDE (keep repo portable)
+.cursor/
+.agent-transcripts/

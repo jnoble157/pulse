@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * CSS custom properties — match tailwind.config.ts + DESIGN.md §2–§4.
+ * Components should prefer Tailwind classes; CSS vars exist so the grid
+ * overlay, keyframes, and inline styles can read the same palette.
+ */
+:root {
+  --bg-base: #faf8f3;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f4f1e8;
+  --bg-surface-3: #ece7d8;
+
+  --border: rgba(10, 10, 10, 0.06);
+  --border-strong: rgba(10, 10, 10, 0.12);
+
+  --text-primary: #0a0a0a;
+  --text-secondary: rgba(10, 10, 10, 0.62);
+  --text-muted: rgba(10, 10, 10, 0.42);
+
+  --accent-yellow: #f5c518;
+  --accent-yellow-hover: #e6b300;
+  --accent-yellow-subtle: rgba(245, 197, 24, 0.18);
+  --accent-yellow-border: rgba(245, 197, 24, 0.55);
+  --accent-black: #0a0a0a;
+  --accent-black-hover: #1f1f1f;
+
+  --chip-amber: #e89c18;
+  --chip-red: #d04336;
+  --chip-yellow-2: #d9a908;
+  --chip-purple: #8b5fbf;
+  --chip-green: #2e9e52;
+  --chip-blue: #3a7fd1;
+  --chip-red-hot: #e0281c;
+}
+
+html,
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+body {
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+}
+
+/** Grid overlay — landing + dashboard shell only (apply `.grid-overlay`). */
+.grid-overlay {
+  background-image:
+    linear-gradient(rgba(10, 10, 10, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 10, 10, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: -1px -1px;
+}
+
+/** Tabular figures on numeric columns (LTV, churn, cost). */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/** Live dot (DESIGN.md §6 — 1.5s gentle pulse). */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.15);
+  }
+}
+.live-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .live-dot {
+    animation: none;
+  }
+}

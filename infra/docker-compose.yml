@@ -1,0 +1,23 @@
+version: '3.9'
+
+# Local dev Postgres with pgvector. Neon runs in production; this is for
+# a tight loop on a fresh clone.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pulse
+      POSTGRES_DB: pulse
+    # Host port 55432 (not 5432) to avoid collisions with a Homebrew or system
+    # Postgres already bound to :5432. Match your DATABASE_URL to this port.
+    ports:
+      - '55432:5432'
+    volumes:
+      - ../pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 10

@@ -1,0 +1,20 @@
+# Build is run from repo root; keep the context small and never ship secrets.
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+.git
+.github
+.cursor
+.vscode
+.idea
+.scratch
+coverage
+**/*.tsbuildinfo
+docs
+*.md
+!apps/voice/README.md
