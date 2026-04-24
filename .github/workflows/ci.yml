@@ -50,10 +50,32 @@ jobs:
       - name: Migrate + RLS
         run: pnpm --filter @pulse/schema db:migrate
 
+      # RLS is not enforced for table owners / superusers the same way as app
+      # roles. Schema tests use a non-superuser (`pulse_ci`) for isolation
+      # assertions while `RLS_ADMIN_DATABASE_URL` stays on `postgres`.
+      - name: Create CI tenant role for RLS tests
+        run: |
+          export PGPASSWORD=postgres
+          psql "postgres://postgres:postgres@localhost:5432/pulse_test" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP ROLE IF EXISTS pulse_ci;
+          CREATE ROLE pulse_ci LOGIN PASSWORD 'postgres' NOSUPERUSER NOBYPASSRLS INHERIT;
+          GRANT CONNECT ON DATABASE pulse_test TO pulse_ci;
+          GRANT USAGE ON SCHEMA public TO pulse_ci;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO pulse_ci;
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pulse_ci;
+          GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO pulse_ci;
+          SQL
+
       - name: Typecheck + Lint + Unit
+        env:
+          DATABASE_URL: postgres://pulse_ci:postgres@localhost:5432/pulse_test
+          RLS_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pulse_test
         run: pnpm check
 
       - name: Schema tests (sanity, DB already migrated)
+        env:
+          DATABASE_URL: postgres://pulse_ci:postgres@localhost:5432/pulse_test
+          RLS_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pulse_test
         run: pnpm --filter @pulse/schema test
 
   format:

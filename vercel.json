@@ -4,5 +4,5 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "outputDirectory": "apps/web/.next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web packages"
+  "ignoreCommand": "bash -c 'if [ -n \"${VERCEL_FORCE_DEPLOY:-}\" ]; then exit 1; fi; if git diff --quiet HEAD^ HEAD -- apps/web packages; then exit 0; else exit 1; fi'"
 }
