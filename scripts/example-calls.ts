@@ -99,21 +99,16 @@ const SCENARIOS: Record<string, { caller_voice: string; turns: ScriptedTurn[] }>
       { speaker: 'agent', text: "Tony's Pizza, Austin. What can I get started for you?" },
       {
         speaker: 'caller',
-        text: 'Hi, quick question — my daughter has a serious gluten allergy. Do you have anything safe for her?',
+        text: 'Hi, quick question. My kid has celiac. Do you have a gluten-free pizza?',
       },
       {
         speaker: 'agent',
-        text: "Honestly, no — we mix wheat dough on the same prep table all day, so I can't promise anything is safe enough for a serious allergy. I don't want to guess on this one.",
+        text: "We do have gluten-free crust, but I can't promise it's safe for celiac because we use the same kitchen and oven. I can get a manager on the line to go over options with you.",
       },
-      { speaker: 'caller', text: "Okay, that's fair. Thanks for being straight about it." },
+      { speaker: 'caller', text: 'Yeah, please. I just want to be careful.' },
       {
         speaker: 'agent',
-        text: "Of course. If you want, I can have the manager call you back with what we'd actually be able to do for pickup. Want me to set that up?",
-      },
-      { speaker: 'caller', text: 'Yeah, please.' },
-      {
-        speaker: 'agent',
-        text: "Got it. What's a good number?",
+        text: "Absolutely. One sec, I'll grab the manager.",
       },
     ],
   },

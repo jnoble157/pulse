@@ -1,6 +1,6 @@
 {
   "audio_url": "/example-calls/allergy.mp3",
-  "duration_ms": 32125,
+  "duration_ms": 21923,
   "turns": [
     {
       "speaker": "agent",
@@ -9,33 +9,23 @@
     },
     {
       "speaker": "caller",
-      "text": "Hi, quick question — my daughter has a serious gluten allergy. Do you have anything safe for her?",
-      "t_ms": 3101
+      "text": "Hi, quick question. My kid has celiac. Do you have a gluten-free pizza?",
+      "t_ms": 3240
     },
     {
       "speaker": "agent",
-      "text": "Honestly, no — we mix wheat dough on the same prep table all day, so I can't promise anything is safe enough for a serious allergy. I don't want to guess on this one.",
-      "t_ms": 8709
+      "text": "We do have gluten-free crust, but I can't promise it's safe for celiac because we use the same kitchen and oven. I can get a manager on the line to go over options with you.",
+      "t_ms": 8198
     },
     {
       "speaker": "caller",
-      "text": "Okay, that's fair. Thanks for being straight about it.",
-      "t_ms": 18265
+      "text": "Yeah, please. I just want to be careful.",
+      "t_ms": 16871
     },
     {
       "speaker": "agent",
-      "text": "Of course. If you want, I can have the manager call you back with what we'd actually be able to do for pickup. Want me to set that up?",
-      "t_ms": 22248
-    },
-    {
-      "speaker": "caller",
-      "text": "Yeah, please.",
-      "t_ms": 28878
-    },
-    {
-      "speaker": "agent",
-      "text": "Got it. What's a good number?",
-      "t_ms": 30307
+      "text": "Absolutely. One sec, I'll grab the manager.",
+      "t_ms": 19554
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "audio_url": "/example-calls/order.mp3",
-  "duration_ms": 25818,
+  "duration_ms": 26897,
   "turns": [
     {
       "speaker": "agent",
@@ -10,32 +10,32 @@
     {
       "speaker": "caller",
       "text": "Hey, can I do a pickup order? One large pepperoni.",
-      "t_ms": 3240
+      "t_ms": 3194
     },
     {
       "speaker": "agent",
       "text": "Sure thing. One large pepperoni for pickup. Want a salad or any drinks with that?",
-      "t_ms": 6387
+      "t_ms": 6852
     },
     {
       "speaker": "caller",
       "text": "Yeah, a Caesar — no croutons, please.",
-      "t_ms": 10974
+      "t_ms": 11485
     },
     {
       "speaker": "agent",
       "text": "Got it. Large pepperoni and a Caesar, no croutons. Comes to twenty-two fifty, about twenty minutes. Can I grab a name?",
-      "t_ms": 13889
+      "t_ms": 14261
     },
     {
       "speaker": "caller",
       "text": "It's for Mike. M-I-K-E.",
-      "t_ms": 20983
+      "t_ms": 22099
     },
     {
       "speaker": "agent",
       "text": "Thanks Mike. See you in twenty.",
-      "t_ms": 23898
+      "t_ms": 24828
     }
   ]
 }

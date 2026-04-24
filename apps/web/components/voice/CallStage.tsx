@@ -28,14 +28,39 @@ type Status =
   | { kind: 'reconnecting' }
   | { kind: 'error'; message: string };
 
+type ExamplePlayback = {
+  callId: string;
+  scenario: 'order' | 'allergy';
+  durationMs: number;
+  turns: TranscriptTurn[];
+  audioUrl: string;
+};
+
+const EXAMPLE_TRANSCRIPT_DELAY_MS = 350;
+
 export function CallStage({ phoneNumber }: Props) {
   const [calls, setCalls] = useState<Record<string, LiveCall>>({});
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
-  const [audio, setAudio] = useState<{ scenario: 'order' | 'allergy'; url: string } | null>(null);
+  const [examplePlayback, setExamplePlayback] = useState<ExamplePlayback | null>(null);
   const [pending, setPending] = useState<'order' | 'allergy' | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const exampleTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  const clearExampleTimers = useCallback(() => {
+    for (const timer of exampleTimersRef.current) clearTimeout(timer);
+    exampleTimersRef.current = [];
+  }, []);
+
+  const stopExamplePlayback = useCallback(() => {
+    clearExampleTimers();
+    setExamplePlayback(null);
+    const el = audioRef.current;
+    if (!el) return;
+    el.pause();
+    el.removeAttribute('src');
+    el.load();
+  }, [clearExampleTimers]);
 
   // SSE subscription. Reconnects on close with a small backoff.
   useEffect(() => {
@@ -85,6 +110,7 @@ export function CallStage({ phoneNumber }: Props) {
             },
           };
         });
+        if (ev.source === 'twilio') stopExamplePlayback();
         setActiveCallId(ev.call_id);
       });
 
@@ -93,12 +119,17 @@ export function CallStage({ phoneNumber }: Props) {
           call_id: string;
           turn: TranscriptTurn;
         };
+        const isExampleTurn = ev.call_id.startsWith('example-');
+        if (!isExampleTurn) {
+          stopExamplePlayback();
+          setActiveCallId(ev.call_id);
+        }
         setCalls((prev) => {
           let cur = prev[ev.call_id];
           if (!cur) {
             cur = {
               call_id: ev.call_id,
-              source: 'twilio',
+              source: isExampleTurn ? 'example' : 'twilio',
               caller_label: null,
               started_at: Date.now(),
               turns: [],
@@ -144,7 +175,7 @@ export function CallStage({ phoneNumber }: Props) {
       closed = true;
       es?.close();
     };
-  }, []);
+  }, [stopExamplePlayback]);
 
   const scheduleExampleTranscript = useCallback(
     ({
@@ -158,8 +189,7 @@ export function CallStage({ phoneNumber }: Props) {
       durationMs: number;
       turns: TranscriptTurn[];
     }) => {
-      for (const timer of exampleTimersRef.current) clearTimeout(timer);
-      exampleTimersRef.current = [];
+      clearExampleTimers();
       const startedAt = Date.now();
       setCalls((prev) => ({
         ...prev,
@@ -180,23 +210,26 @@ export function CallStage({ phoneNumber }: Props) {
               if (!cur) return prev;
               return appendTurn(prev, cur, turn);
             });
-          }, turn.t_ms),
+          }, turn.t_ms + EXAMPLE_TRANSCRIPT_DELAY_MS),
         );
       }
       exampleTimersRef.current.push(
-        setTimeout(() => {
-          setCalls((prev) => {
-            const cur = prev[callId];
-            if (!cur) return prev;
-            return {
-              ...prev,
-              [callId]: { ...cur, ended_at: Date.now(), ended_reason: 'completed' },
-            };
-          });
-        }, durationMs + 500),
+        setTimeout(
+          () => {
+            setCalls((prev) => {
+              const cur = prev[callId];
+              if (!cur) return prev;
+              return {
+                ...prev,
+                [callId]: { ...cur, ended_at: Date.now(), ended_reason: 'completed' },
+              };
+            });
+          },
+          durationMs + EXAMPLE_TRANSCRIPT_DELAY_MS + 500,
+        ),
       );
     },
-    [],
+    [clearExampleTimers],
   );
 
   const playExample = useCallback(
@@ -216,13 +249,26 @@ export function CallStage({ phoneNumber }: Props) {
           turns: TranscriptTurn[];
         };
         setActiveCallId(json.call_id);
-        scheduleExampleTranscript({
+        setCalls((prev) => ({
+          ...prev,
+          [json.call_id]: {
+            call_id: json.call_id,
+            source: 'example',
+            caller_label:
+              scenario === 'order'
+                ? 'Sample call · pickup order'
+                : 'Sample call · allergy question',
+            started_at: Date.now(),
+            turns: [],
+          },
+        }));
+        setExamplePlayback({
           callId: json.call_id,
           scenario,
           durationMs: json.duration_ms,
           turns: json.turns,
+          audioUrl: json.audio_url,
         });
-        setAudio({ scenario, url: json.audio_url });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'failed to start example';
         setStatus({ kind: 'error', message: msg });
@@ -231,26 +277,41 @@ export function CallStage({ phoneNumber }: Props) {
         setPending(null);
       }
     },
-    [pending, scheduleExampleTranscript],
+    [pending],
   );
 
-  // Audio playback for example calls. Real calls don't have an audio file
-  // attached to the page; the live caller hears the agent on their phone.
+  // Audio playback for example calls. Transcript timing starts after the
+  // browser actually starts the MP3, not when the API response returns.
   useEffect(() => {
-    if (!audio || !audioRef.current) return;
+    if (!examplePlayback || !audioRef.current) return;
     const el = audioRef.current;
-    el.src = audio.url;
+    let cancelled = false;
+    el.src = examplePlayback.audioUrl;
     el.currentTime = 0;
-    void el.play().catch(() => {
-      // user gesture required; the click that triggered this should satisfy
-    });
-  }, [audio]);
+    void el
+      .play()
+      .then(() => {
+        if (cancelled) return;
+        scheduleExampleTranscript({
+          callId: examplePlayback.callId,
+          scenario: examplePlayback.scenario,
+          durationMs: examplePlayback.durationMs,
+          turns: examplePlayback.turns,
+        });
+      })
+      .catch(() => {
+        // user gesture required; the click that triggered this should satisfy
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [examplePlayback, scheduleExampleTranscript]);
 
   useEffect(() => {
     return () => {
-      for (const timer of exampleTimersRef.current) clearTimeout(timer);
+      clearExampleTimers();
     };
-  }, []);
+  }, [clearExampleTimers]);
 
   const sortedCalls = useMemo(
     () => Object.values(calls).sort((a, b) => b.started_at - a.started_at),
