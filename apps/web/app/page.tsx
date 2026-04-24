@@ -108,7 +108,7 @@ function Notes() {
         <p>
           Out of scope: multi-tenancy, real menu and POS sync, card capture, audio recording,
           anything other than English. Endpointing still misses edges when a caller pauses
-          mid-sentence, which is the next thing I&rsquo;d harden. Code is all in this repo, happy to
+          mid-sentence, which is the next thing I&rsquo;d harden. Code is all in github, happy to
           walk through any part of it.
         </p>
       </div>
