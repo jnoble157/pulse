@@ -26,11 +26,11 @@ Read [ADR-038](DECISIONS.md#adr-038--pivot-to-a-voice-agent-demo-remove-the-anal
 - Anthropic tool `input_schema` is a **flat** `z.object` + `superRefine` in `apps/voice/src/brain/tools.ts` (no top-level `anyOf`/`oneOf` — Anthropic rejects those).
 - Live-push **ordering**: parallel `fetch` to Vercel could deliver `turn.appended` before `call.started`; `apps/web/lib/live-calls.ts` and `CallStage.tsx` buffer orphan turns and merge.
 - Interim **barge-in** is suppressed until `greet()`’s `speak()` finishes so the caller does not cancel the greeting TTS.
-- ElevenLabs stream-input: `auto_mode=true`, `pcm_16000`, deferred `{ "text": "" }` EOS; outbound μ-law is **chunked to 160-byte frames** before `twilioWs.send(makeMediaFrame(…))`.
+- ElevenLabs stream-input: `auto_mode=true`, `ulaw_8000`, deferred `{ "text": "" }` EOS; outbound μ-law is passed straight through and **chunked to 160-byte frames** before `twilioWs.send(makeMediaFrame(…))`.
 
 **What is still broken**
 
-- Something in **ElevenLabs → downsample → μ-law → Twilio `media` JSON** does not produce audible PSTN audio in production (Railway), despite `[voice] spoke …` log lines when TTS completes.
+- Historical note: the previous **ElevenLabs `pcm_16000` → downsample → μ-law → Twilio `media` JSON** path produced silence in production. The current path asks ElevenLabs for Twilio-native `ulaw_8000` and passes those bytes directly to Twilio.
 
 **Suggested next steps (in order)**
 

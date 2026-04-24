@@ -3,8 +3,7 @@
  *
  * We open a websocket per turn (the connection cost is ~50ms; cheaper than
  * keeping one open across turns and dealing with state desync on barge-in).
- * Output format is `pcm_16000`; we downsample to 8kHz linear16 and μ-law
- * encode in `codec.ts` so Twilio gets the same G.711u shape as inbound media.
+ * Output format is `ulaw_8000`, which Twilio Media Streams can play directly.
  * Query `auto_mode=true` avoids the default chunk-length buffer on short lines.
  * The first audio chunk back is the latency we publish in DEMO.md §3.
  *
@@ -17,8 +16,8 @@ export type TtsOptions = {
   voiceId: string;
   modelId: string;
   text: string;
-  /** Called for every audio chunk (linear16 @ 16kHz little-endian). */
-  onChunk: (pcm16: Buffer) => void;
+  /** Called for every audio chunk (G.711 μ-law @ 8kHz). */
+  onChunk: (mulaw8: Buffer) => void;
   onOpen?: () => void;
   onFirstChunk?: () => void;
   onDone?: () => void;
@@ -28,7 +27,7 @@ export type TtsOptions = {
 export function streamTts(opts: TtsOptions): { cancel: () => void } {
   const q = new URLSearchParams({
     model_id: opts.modelId,
-    output_format: 'pcm_16000',
+    output_format: 'ulaw_8000',
     auto_mode: 'true',
   });
   const url = `wss://api.elevenlabs.io/v1/text-to-speech/${opts.voiceId}/stream-input?${q}`;
@@ -71,13 +70,13 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
       return;
     }
     if (json?.audio) {
-      const pcm = Buffer.from(json.audio, 'base64');
-      if (pcm.length > 0) {
+      const mulaw = Buffer.from(json.audio, 'base64');
+      if (mulaw.length > 0) {
         if (!firstChunkSeen) {
           firstChunkSeen = true;
           opts.onFirstChunk?.();
         }
-        opts.onChunk(pcm);
+        opts.onChunk(mulaw);
       }
     }
     if (json?.isFinal) {
@@ -98,20 +97,4 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 
 function normalizeSpeechText(text: string): string {
   return text.replace(/!+/g, '.');
-}
-
-/**
- * Cheap 16kHz → 8kHz downsample by averaging adjacent samples. Phone audio
- * is bandlimited to ~3.5kHz anyway; this is the standard "good enough" path.
- */
-export function downsample16to8(pcm16: Buffer): Buffer {
-  const samples = pcm16.length / 2;
-  const outSamples = Math.floor(samples / 2);
-  const out = Buffer.alloc(outSamples * 2);
-  for (let i = 0; i < outSamples; i++) {
-    const a = pcm16.readInt16LE(i * 4);
-    const b = pcm16.readInt16LE(i * 4 + 2);
-    out.writeInt16LE(Math.round((a + b) / 2), i * 2);
-  }
-  return out;
 }

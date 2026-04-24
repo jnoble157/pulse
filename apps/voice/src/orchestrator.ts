@@ -31,9 +31,9 @@ import {
   makeMark,
   type TwilioInbound,
 } from './audio/twilio.js';
-import { muLawToPcm16, pcm16ToMuLaw } from './audio/codec.js';
+import { muLawToPcm16 } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
-import { streamTts, downsample16to8 } from './audio/elevenlabs.js';
+import { streamTts } from './audio/elevenlabs.js';
 import { decide } from './brain/decide.js';
 import { applyTool, type ToolResult } from './brain/tools.js';
 import { LivePushClient } from './live-push.js';
@@ -310,11 +310,9 @@ export class Orchestrator {
             ttsFirstChunkMs = Math.round(performance.now() - callerFinalAt);
           }
         },
-        onChunk: (pcm16) => {
-          const pcm8 = downsample16to8(pcm16);
-          const mu = pcm16ToMuLaw(pcm8);
-          for (let o = 0; o < mu.length; o += TWILIO_MULAW_FRAME_BYTES) {
-            const slice = mu.subarray(o, o + TWILIO_MULAW_FRAME_BYTES);
+        onChunk: (muLaw8) => {
+          for (let o = 0; o < muLaw8.length; o += TWILIO_MULAW_FRAME_BYTES) {
+            const slice = muLaw8.subarray(o, o + TWILIO_MULAW_FRAME_BYTES);
             try {
               this.twilioWs.send(makeMediaFrame(this.streamSid!, slice.toString('base64')));
               sentFrames++;
