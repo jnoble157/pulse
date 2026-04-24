@@ -228,7 +228,7 @@ export class Orchestrator {
           });
         }
         if (this.session.terminal) {
-          const line = closingLine(this.session.terminal);
+          const line = turn.text?.trim() || closingLine(this.session.terminal);
           this.livePush.emit({
             kind: 'turn.appended',
             call_id: this.session.callId,

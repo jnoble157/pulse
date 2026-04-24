@@ -34,7 +34,9 @@ export const AgentTurnSchema = z
       .min(1)
       .max(500)
       .optional()
-      .describe('Required when action is say: one short reply for the caller.'),
+      .describe(
+        'Required when action is say. Optional for end_call: final closeout spoken before disconnecting.',
+      ),
     name: z
       .string()
       .min(1)

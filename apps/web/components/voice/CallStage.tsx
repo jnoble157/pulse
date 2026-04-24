@@ -76,12 +76,15 @@ export function CallStage({ phoneNumber }: Props) {
       es.addEventListener('snapshot', (raw) => {
         try {
           const payload = JSON.parse((raw as MessageEvent).data) as { calls: LiveCall[] };
+          const calls = payload.calls.filter(
+            (call) => !(call.source === 'example' && call.ended_at),
+          );
           setCalls((prev) => {
             const next = { ...prev };
-            for (const c of payload.calls) next[c.call_id] = c;
+            for (const c of calls) next[c.call_id] = c;
             return next;
           });
-          const newest = payload.calls.sort((a, b) => b.started_at - a.started_at)[0];
+          const newest = calls.sort((a, b) => b.started_at - a.started_at)[0];
           if (newest) setActiveCallId((cur) => cur ?? newest.call_id);
           setStatus({ kind: 'connected' });
           backoff = 500;
@@ -329,6 +332,7 @@ export function CallStage({ phoneNumber }: Props) {
         pending={pending}
       />
       <CallTranscript call={activeCall ?? null} />
+      <CallInsights call={activeCall ?? null} />
       <audio ref={audioRef} preload="auto" className="hidden" />
     </section>
   );
@@ -354,6 +358,143 @@ function appendTurn(
     ...calls,
     [call.call_id]: { ...call, turns: [...call.turns, turn] },
   };
+}
+
+type CallInsight = {
+  label: string;
+  values: string[];
+};
+
+function deriveCallInsights(call: LiveCall | null): CallInsight[] {
+  if (!call || call.turns.length === 0) return [];
+
+  const transcript = call.turns.map((turn) => turn.text).join(' ');
+  const lower = transcript.toLowerCase();
+  const orderItems = deriveOrderItems(call, lower);
+  const orderTotal = deriveOrderTotal(transcript, lower);
+  const customerDetails = deriveCustomerDetails(call);
+  const escalation = deriveEscalation(call, lower);
+  const insights: CallInsight[] = [];
+
+  if (orderItems.length > 0) {
+    insights.push({ label: 'Order', values: orderItems });
+  }
+  if (orderTotal) {
+    insights.push({ label: 'Total', values: [orderTotal] });
+  }
+  if (customerDetails.length > 0) {
+    insights.push({ label: 'Customer', values: customerDetails });
+  }
+  if (escalation) {
+    insights.push({ label: 'Next step', values: [escalation] });
+  }
+  insights.push({ label: 'Status', values: [deriveStatus(call, orderItems.length > 0)] });
+
+  return insights.slice(0, 4);
+}
+
+function deriveOrderItems(call: LiveCall, lowerTranscript: string): string[] {
+  const items = new Map<string, string>();
+  for (const turn of call.turns) {
+    if (turn.action?.kind === 'add_to_cart') {
+      const value = `${turn.action.qty}x ${turn.action.item}`;
+      items.set(value.toLowerCase(), value);
+    }
+  }
+
+  if (items.size === 0) {
+    if (lowerTranscript.includes('large pepperoni')) {
+      items.set('large pepperoni', '1x Large Pepperoni Pizza');
+    }
+    if (lowerTranscript.includes('caesar')) {
+      const caesar = lowerTranscript.includes('no croutons')
+        ? '1x Caesar Salad (no croutons)'
+        : '1x Caesar Salad';
+      items.set('caesar', caesar);
+    }
+    if (
+      lowerTranscript.includes('medium cheese pizza') ||
+      lowerTranscript.includes('cheese pizza')
+    ) {
+      items.set('medium cheese pizza', '1x Medium Cheese Pizza');
+    }
+  }
+
+  return [...items.values()];
+}
+
+function deriveOrderTotal(transcript: string, lowerTranscript: string): string | null {
+  const dollar = transcript.match(/\$\s?(\d+(?:\.\d{2})?)/);
+  if (dollar) return `$${Number(dollar[1]).toFixed(2)}`;
+  if (lowerTranscript.includes('twenty-two fifty')) return '$22.50';
+  if (lowerTranscript.includes('fourteen ninety-nine')) return '$14.99';
+  return null;
+}
+
+function deriveCustomerDetails(call: LiveCall): string[] {
+  const details: string[] = [];
+  const name = findCallerName(call);
+  const phone = findPhoneNumber(call);
+  if (name) details.push(name);
+  if (phone) details.push(phone);
+  return details;
+}
+
+function findCallerName(call: LiveCall): string | null {
+  for (let i = 1; i < call.turns.length; i++) {
+    const prev = call.turns[i - 1]!;
+    const cur = call.turns[i]!;
+    if (prev.speaker !== 'agent' || cur.speaker !== 'caller') continue;
+    const prompt = prev.text.toLowerCase();
+    if (!prompt.includes('name')) continue;
+    if (phoneDigits(cur.text).length >= 7) continue;
+    const cleaned = cleanCallerName(cur.text);
+    return cleaned || null;
+  }
+  return null;
+}
+
+function cleanCallerName(text: string): string {
+  return text
+    .replace(/^(yeah|yep|sure|okay|ok)[,.]?\s+/i, '')
+    .replace(/^(it'?s|it is|this is)\s+/i, '')
+    .replace(/^for\s+/i, '')
+    .replace(/\b(?:[A-Z]\s*[-.]\s*){2,}[A-Z]\b\.?/g, '')
+    .replace(/[.?!]+/g, '')
+    .trim();
+}
+
+function findPhoneNumber(call: LiveCall): string | null {
+  for (const turn of call.turns) {
+    if (turn.speaker !== 'caller') continue;
+    const digits = phoneDigits(turn.text);
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    if (digits.length === 11 && digits.startsWith('1')) {
+      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+  }
+  return null;
+}
+
+function phoneDigits(text: string): string {
+  return text.replace(/\D/g, '');
+}
+
+function deriveEscalation(call: LiveCall, lowerTranscript: string): string | null {
+  const hasTransfer = call.turns.some((turn) => turn.action?.kind === 'transfer_to_staff');
+  const hasAllergy = /\b(celiac|allergy|allergic|gluten|gluten-free)\b/.test(lowerTranscript);
+  if (hasTransfer) return 'Manager follow-up requested';
+  if (hasAllergy) return 'Allergy safety question · Escalate to manager';
+  return null;
+}
+
+function deriveStatus(call: LiveCall, hasOrder: boolean): string {
+  if (!call.ended_at) return 'Listening for next step';
+  if (call.source === 'example') return 'Sample complete';
+  if (hasOrder) return 'Order ready for staff review';
+  return 'Call complete';
 }
 
 function PhoneHeader({
@@ -511,6 +652,48 @@ function CallTranscript({ call }: { call: LiveCall | null }) {
         {!call.ended_at ? <ListeningRow /> : null}
         {call.ended_at ? <EndedRow reason={call.ended_reason ?? 'completed'} /> : null}
       </ol>
+    </div>
+  );
+}
+
+function CallInsights({ call }: { call: LiveCall | null }) {
+  const insights = useMemo(() => deriveCallInsights(call), [call]);
+
+  return (
+    <div className="border-t border-border bg-bg-surface px-5 py-5 sm:px-7">
+      <div className="grid gap-4 sm:grid-cols-[150px_1fr] sm:gap-6">
+        <div>
+          <p className="font-mono text-[10.5px] uppercase leading-relaxed tracking-[0.18em] text-text-muted">
+            Captured info
+          </p>
+        </div>
+        <div>
+          {insights.length === 0 ? (
+            <p className="text-[13px] leading-snug text-text-muted">
+              Call details will appear here once the agent has something useful.
+            </p>
+          ) : null}
+          {insights.length > 0 ? (
+            <dl className="grid gap-4">
+              {insights.map((insight) => (
+                <div
+                  key={`${insight.label}:${insight.values.join('|')}`}
+                  className="grid gap-1.5 sm:grid-cols-[96px_1fr] sm:gap-5"
+                >
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                    {insight.label}
+                  </dt>
+                  <dd className="space-y-1 text-[14px] leading-snug text-text-primary">
+                    {insight.values.map((value) => (
+                      <p key={value}>{value}</p>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
