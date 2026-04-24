@@ -2,7 +2,7 @@
  * Per-turn decision for the voice agent.
  *
  * Calls Claude through `llmCall` (AGENTS.md §Hard invariants #6) with the
- * `AgentTurnSchema` discriminated union as the structured output. The model
+ * `AgentTurnSchema` as the structured output. The model
  * is forced to commit to exactly one action per turn, which keeps latency
  * bounded by a single round trip.
  *

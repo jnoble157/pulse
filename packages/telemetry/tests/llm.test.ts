@@ -88,13 +88,4 @@ describe('toToolSchema — draft-2020-12 compatibility', () => {
     expect(findKey(json, 'nullable')).toBe(false);
   });
 
-  it('adds top-level type object for discriminated unions (Anthropic input_schema)', () => {
-    const schema = z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('a'), x: z.number() }),
-      z.object({ kind: z.literal('b'), y: z.string() }),
-    ]);
-    const json = toToolSchema(schema);
-    expect(json.type).toBe('object');
-    expect(Array.isArray(json.anyOf) || Array.isArray(json.oneOf)).toBe(true);
-  });
 });

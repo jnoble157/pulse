@@ -3,10 +3,10 @@
  *
  * We open a websocket per turn (the connection cost is ~50ms; cheaper than
  * keeping one open across turns and dealing with state desync on barge-in).
- * Output format is `ulaw_8000` so payloads match Twilio Media Streams
- * (μ-law @ 8 kHz) without resampling. Query `auto_mode=true` avoids the default
- * chunk-length buffer that can block first audio on short lines. The first
- * audio chunk back is the latency we publish in DEMO.md §3.
+ * Output format is `pcm_16000`; we downsample to 8kHz linear16 and μ-law
+ * encode in `codec.ts` so Twilio gets the same G.711u shape as inbound media.
+ * Query `auto_mode=true` avoids the default chunk-length buffer on short lines.
+ * The first audio chunk back is the latency we publish in DEMO.md §3.
  *
  * Reference: https://elevenlabs.io/docs/api-reference/text-to-speech-websockets
  */
@@ -17,8 +17,8 @@ export type TtsOptions = {
   voiceId: string;
   modelId: string;
   text: string;
-  /** Called for every audio chunk (μ-law @ 8 kHz, ready for Twilio `media.payload`). */
-  onChunk: (mulaw: Buffer) => void;
+  /** Called for every audio chunk (linear16 @ 16kHz little-endian). */
+  onChunk: (pcm16: Buffer) => void;
   onFirstChunk?: () => void;
   onDone?: () => void;
   onError?: (err: Error) => void;
@@ -27,7 +27,7 @@ export type TtsOptions = {
 export function streamTts(opts: TtsOptions): { cancel: () => void } {
   const q = new URLSearchParams({
     model_id: opts.modelId,
-    output_format: 'ulaw_8000',
+    output_format: 'pcm_16000',
     auto_mode: 'true',
   });
   const url = `wss://api.elevenlabs.io/v1/text-to-speech/${opts.voiceId}/stream-input?${q}`;
@@ -65,13 +65,13 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
       return;
     }
     if (json?.audio) {
-      const mulaw = Buffer.from(json.audio, 'base64');
-      if (mulaw.length > 0) {
+      const pcm = Buffer.from(json.audio, 'base64');
+      if (pcm.length > 0) {
         if (!firstChunkSeen) {
           firstChunkSeen = true;
           opts.onFirstChunk?.();
         }
-        opts.onChunk(mulaw);
+        opts.onChunk(pcm);
       }
     }
     if (json?.isFinal) {

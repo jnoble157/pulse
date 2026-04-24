@@ -12,8 +12,10 @@
  *
  * Barge-in:
  *   - On Deepgram interim results that look like speech (>= 2 chars), if
- *     the agent is currently speaking, send a `clear` to Twilio and cancel
- *     the in-flight TTS. The agent then waits for the caller's final.
+ *     the agent is currently speaking **and** the opening greeting has
+ *     finished, send a `clear` to Twilio and cancel the in-flight TTS.
+ *     (Interim text during the greeting would otherwise cancel the greeting
+ *     before the caller hears it.)
  *
  * Latency:
  *   - Stamped on the session at `caller_final → first TTS chunk`. Surfaced
@@ -23,9 +25,9 @@ import type { WebSocket as WsWebSocket } from 'ws';
 import type { MenuItem } from '@pulse/schema';
 import { CallSession } from './session.js';
 import { parseInbound, makeMediaFrame, makeClear, type TwilioInbound } from './audio/twilio.js';
-import { muLawToPcm16 } from './audio/codec.js';
+import { muLawToPcm16, pcm16ToMuLaw } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
-import { streamTts } from './audio/elevenlabs.js';
+import { streamTts, downsample16to8 } from './audio/elevenlabs.js';
 import { decide } from './brain/decide.js';
 import { applyTool, type ToolResult } from './brain/tools.js';
 import { LivePushClient } from './live-push.js';
@@ -48,6 +50,8 @@ export class Orchestrator {
   private deciding = false;
   private pendingDecide = false;
   private callStartMs = 0;
+  /** Interim barge-in is suppressed until the opening `speak()` completes. */
+  private greetingDone = false;
   private readonly livePush: LivePushClient;
   private callerNumber: string | null = null;
 
@@ -138,8 +142,7 @@ export class Orchestrator {
     const text = t.channel.alternatives[0]?.transcript?.trim() ?? '';
     if (!text) return;
     if (!t.is_final) {
-      // Barge-in: caller started speaking while agent is mid-sentence.
-      if (this.speaking && text.length >= 2) this.bargeIn();
+      if (this.speaking && text.length >= 2 && this.greetingDone) this.bargeIn();
       return;
     }
     if (!this.session) return;
@@ -179,18 +182,19 @@ export class Orchestrator {
         const decideMs = performance.now() - decideStart;
 
         if (turn.action === 'say') {
+          const reply = turn.text ?? '';
           this.session.appendTurn(
             'agent',
-            turn.text,
+            reply,
             Math.round(this.session.now()),
             Math.round(this.session.now()),
           );
           this.livePush.emit({
             kind: 'turn.appended',
             call_id: this.session.callId,
-            turn: { speaker: 'agent', text: turn.text, t_ms: Date.now() - this.callStartMs },
+            turn: { speaker: 'agent', text: reply, t_ms: Date.now() - this.callStartMs },
           });
-          await this.speak(turn.text, decideMs);
+          await this.speak(reply, decideMs);
           break;
         }
 
@@ -249,7 +253,11 @@ export class Orchestrator {
       call_id: this.session.callId,
       turn: { speaker: 'agent', text, t_ms: 0 },
     });
-    await this.speak(text, 0);
+    try {
+      await this.speak(text, 0);
+    } finally {
+      this.greetingDone = true;
+    }
   }
 
   private async speak(text: string, decideMs: number): Promise<void> {
@@ -271,8 +279,10 @@ export class Orchestrator {
             });
           }
         },
-        onChunk: (mulaw) => {
-          this.twilioWs.send(makeMediaFrame(this.streamSid!, mulaw.toString('base64')));
+        onChunk: (pcm16) => {
+          const pcm8 = downsample16to8(pcm16);
+          const mu = pcm16ToMuLaw(pcm8);
+          this.twilioWs.send(makeMediaFrame(this.streamSid!, mu.toString('base64')));
         },
         onDone: () => {
           this.speaking = null;
@@ -383,15 +393,15 @@ function liveActionFor(
     case 'add_to_cart':
       return {
         kind: 'add_to_cart',
-        item: String(turn.item ?? ''),
-        qty: Number(turn.qty ?? 1),
+        item: String(turn.menu_item_id ?? ''),
+        qty: Number(turn.quantity ?? 1),
       };
     case 'transfer_to_staff':
       return { kind: 'transfer_to_staff', reason: String(turn.reason ?? '') };
     case 'end_call':
       return { kind: 'end_call' };
     case 'lookup_menu_item':
-      return { kind: 'lookup_menu_item', query: String(turn.query ?? '') };
+      return { kind: 'lookup_menu_item', query: String(turn.name ?? '') };
     default:
       return undefined;
   }

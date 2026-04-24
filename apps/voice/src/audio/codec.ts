@@ -3,8 +3,8 @@
  *
  * Twilio Programmable Voice Media Streams emit 20ms frames of base64-encoded
  * μ-law (G.711u) at 8kHz mono. Deepgram expects linear16 @ 16kHz, so inbound
- * audio is decoded and upsampled at that boundary (agent TTS uses μ-law from
- * ElevenLabs and is sent to Twilio without this codec path).
+ * audio is decoded and upsampled at that boundary. Agent TTS (ElevenLabs
+ * linear16 @ 16kHz) is downsampled and encoded here before sending to Twilio.
  *
  * The lookup tables are generated once at module load. The encode/decode
  * routines are tight loops with no allocations on the hot path beyond the
