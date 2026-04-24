@@ -28,10 +28,16 @@ export type Terminal = { kind: 'transferred' | 'ended'; reason: string } | null;
 
 export type LatencyEvent = {
   turn_index: number;
-  /** Caller stopped speaking → first ElevenLabs audio chunk back to Twilio. */
+  /** Caller stopped speaking → first audio frame sent back to Twilio. */
   decide_to_first_audio_ms: number;
   /** Caller stopped speaking → decide() returned. */
   decide_ms: number;
+  /** Caller stopped speaking → ElevenLabs WebSocket opened. */
+  tts_open_ms: number | null;
+  /** Caller stopped speaking → first ElevenLabs audio chunk arrived. */
+  tts_first_chunk_ms: number;
+  /** Caller stopped speaking → first Twilio media frame was sent. */
+  first_twilio_frame_ms: number;
 };
 
 export class CallSession {

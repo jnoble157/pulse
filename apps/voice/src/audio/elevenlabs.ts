@@ -19,6 +19,7 @@ export type TtsOptions = {
   text: string;
   /** Called for every audio chunk (linear16 @ 16kHz little-endian). */
   onChunk: (pcm16: Buffer) => void;
+  onOpen?: () => void;
   onFirstChunk?: () => void;
   onDone?: () => void;
   onError?: (err: Error) => void;
@@ -37,10 +38,17 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 
   ws.on('open', () => {
     if (cancelled) return ws.close();
+    opts.onOpen?.();
     ws.send(
       JSON.stringify({
         text: ' ',
-        voice_settings: { stability: 0.45, similarity_boost: 0.7, style: 0.2 },
+        voice_settings: {
+          stability: 0.35,
+          similarity_boost: 0.75,
+          style: 0.0,
+          use_speaker_boost: true,
+          speed: 1.0,
+        },
       }),
     );
     const chunk = `${opts.text.endsWith(' ') ? opts.text : `${opts.text} `}`;

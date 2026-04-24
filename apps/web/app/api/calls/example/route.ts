@@ -13,11 +13,13 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { emitCallEvent, type CallEvent, type TranscriptTurn } from '@/lib/live-calls';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 45;
 
 const ScenarioSchema = z.enum(['order', 'allergy']);
 
@@ -74,22 +76,12 @@ export async function POST(request: Request): Promise<Response> {
   };
   emitCallEvent(startedEvent);
 
-  // Emit each turn at its original offset. Done from a setTimeout chain so
-  // the request returns immediately and the browser can start audio playback
-  // while we drive the transcript on the server clock.
-  for (const turn of manifest.turns) {
-    setTimeout(() => {
-      emitCallEvent({ kind: 'turn.appended', call_id: callId, turn });
-    }, turn.t_ms);
-  }
-  setTimeout(() => {
-    emitCallEvent({
-      kind: 'call.ended',
-      call_id: callId,
-      ended_at: Date.now(),
-      reason: 'completed',
-    });
-  }, manifest.duration_ms + 500);
+  // Vercel can freeze a serverless invocation once the response returns.
+  // `after()` keeps the timed transcript driver alive while the browser starts
+  // playback from the audio URL returned below.
+  scheduleAfterResponse(async () => {
+    await emitManifestTurns(callId, manifest);
+  });
 
   return Response.json({
     call_id: callId,
@@ -97,4 +89,36 @@ export async function POST(request: Request): Promise<Response> {
     duration_ms: manifest.duration_ms,
     turns: manifest.turns.length,
   });
+}
+
+async function emitManifestTurns(callId: string, manifest: ExampleManifest): Promise<void> {
+  let prev = 0;
+  for (const turn of manifest.turns) {
+    await sleep(Math.max(0, turn.t_ms - prev));
+    emitCallEvent({ kind: 'turn.appended', call_id: callId, turn });
+    prev = turn.t_ms;
+  }
+  await sleep(500);
+  emitCallEvent({
+    kind: 'call.ended',
+    call_id: callId,
+    ended_at: Date.now(),
+    reason: 'completed',
+  });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function scheduleAfterResponse(task: () => Promise<void>): void {
+  try {
+    after(task);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes('outside a request scope')) throw err;
+    // Route unit tests call POST() directly, outside Next's request async
+    // context. Run the same delayed task so fake timers can exercise it.
+    void task();
+  }
 }

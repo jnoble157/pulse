@@ -36,28 +36,31 @@ try {
 
 /**
  * TTS provider note: live agent uses ElevenLabs Flash v2.5 in apps/voice/.
- * The sample calls use OpenAI's `gpt-4o-mini-tts` because the project's
- * ElevenLabs key is free-tier (premade voices blocked over the API). Once
- * the ElevenLabs key is on a paid tier, swap `tts()` below to call
- * `https://api.elevenlabs.io/v1/text-to-speech/{voice_id}` with
- * `model_id=eleven_flash_v2_5`, `output_format=mp3_44100_128`, and use
- * `process.env.ELEVENLABS_VOICE_ID` for the agent + `EXAMPLE_CALLER_VOICE_ID`
- * for the caller. Everything else here stays the same.
+ * The sample calls use the same provider and agent voice so the pre-recorded
+ * path sounds like the real call path.
  */
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
-  console.error('example-calls — OPENAI_API_KEY is required.');
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+if (!ELEVENLABS_API_KEY) {
+  console.error('example-calls — ELEVENLABS_API_KEY is required.');
   process.exit(1);
 }
 
-// `gpt-4o-mini-tts` is markedly more natural than `tts-1` for conversational
-// speech. Voices below are picked to sound like a small-business phone host
-// (agent) and two distinct callers — different enough that the two-speaker
-// conversation reads cleanly without anyone announcing themselves.
-const AGENT_VOICE = process.env.EXAMPLE_AGENT_VOICE ?? 'ash';
-const CALLER_VOICE_ORDER = process.env.EXAMPLE_CALLER_VOICE_ORDER ?? 'echo';
-const CALLER_VOICE_ALLERGY = process.env.EXAMPLE_CALLER_VOICE_ALLERGY ?? 'sage';
-const MODEL = process.env.EXAMPLE_CALLS_MODEL ?? 'gpt-4o-mini-tts';
+// Voices are picked to sound like a small-business phone host (agent) and
+// two distinct callers, so the two-speaker conversation reads clearly without
+// anyone announcing themselves.
+const AGENT_VOICE = process.env.EXAMPLE_AGENT_VOICE_ID ?? 'iP95p4xoKVk53GoZ742B'; // Chris
+const CALLER_VOICE_ORDER = process.env.EXAMPLE_CALLER_ORDER_VOICE_ID ?? 'TX3LPaxmHKxFdv7VOQHJ'; // Liam
+const CALLER_VOICE_ALLERGY =
+  process.env.EXAMPLE_CALLER_ALLERGY_VOICE_ID ?? 'cgSgspJ2msm6clMCkdW9'; // Jessica
+const MODEL = process.env.EXAMPLE_CALLS_MODEL ?? 'eleven_flash_v2_5';
+const OUTPUT_FORMAT = process.env.EXAMPLE_CALLS_OUTPUT_FORMAT ?? 'mp3_44100_128';
+const VOICE_SETTINGS = {
+  stability: 0.35,
+  similarity_boost: 0.75,
+  style: 0.0,
+  use_speaker_boost: true,
+  speed: 1.0,
+};
 
 const FORCE = process.argv.includes('--force');
 
@@ -146,7 +149,9 @@ async function buildScenario(
   for (let i = 0; i < def.turns.length; i++) {
     const turn = def.turns[i]!;
     const voice = turn.speaker === 'agent' ? AGENT_VOICE : def.caller_voice;
-    const hash = sha8(`${voice}|${MODEL}|${turn.text}`);
+    const hash = sha8(
+      `${voice}|${MODEL}|${OUTPUT_FORMAT}|${JSON.stringify(VOICE_SETTINGS)}|${turn.text}`,
+    );
     const clipPath = join(CACHE_DIR, `${scenario}-${i.toString().padStart(2, '0')}-${hash}.mp3`);
 
     if (FORCE || !existsSync(clipPath)) {
@@ -185,24 +190,23 @@ async function tts({
   voice: string;
   outPath: string;
 }): Promise<void> {
-  const res = await fetch('https://api.openai.com/v1/audio/speech', {
+  const q = new URLSearchParams({ output_format: OUTPUT_FORMAT });
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?${q}`, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${OPENAI_API_KEY!}`,
+      'xi-api-key': ELEVENLABS_API_KEY!,
       'content-type': 'application/json',
       accept: 'audio/mpeg',
     },
     body: JSON.stringify({
-      model: MODEL,
-      voice,
-      input: text,
-      response_format: 'mp3',
-      speed: 1.0,
+      text,
+      model_id: MODEL,
+      voice_settings: VOICE_SETTINGS,
     }),
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`openai tts ${res.status}: ${body.slice(0, 400)}`);
+    throw new Error(`elevenlabs tts ${res.status}: ${body.slice(0, 400)}`);
   }
   const buf = Buffer.from(await res.arrayBuffer());
   await writeFile(outPath, buf);

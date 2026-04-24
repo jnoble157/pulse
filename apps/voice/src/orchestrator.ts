@@ -18,12 +18,12 @@
  *     before the caller hears it.)
  *
  * Latency:
- *   - Stamped on the session at `caller_final → first TTS chunk`. Surfaced
- *     in the IngestCallEvent metadata for DEMO.md publishing.
+ *   - Stamped on the session at `caller_final → first Twilio media frame`.
+ *     Surfaced in the structured call summary for Railway log review.
  */
 import type { WebSocket as WsWebSocket } from 'ws';
 import type { MenuItem } from '@pulse/schema';
-import { CallSession } from './session.js';
+import { CallSession, type LatencyEvent } from './session.js';
 import { parseInbound, makeMediaFrame, makeClear, type TwilioInbound } from './audio/twilio.js';
 import { muLawToPcm16, pcm16ToMuLaw } from './audio/codec.js';
 import { DeepgramSession, upsample8to16 } from './audio/deepgram.js';
@@ -202,26 +202,19 @@ export class Orchestrator {
         }
 
         const result = applyTool(this.session, turn);
-        const summary = `[tool:${turn.action}] ${result ? JSON.stringify(result) : ''}`.slice(
-          0,
-          240,
-        );
-        this.session.appendTurn(
-          'agent',
-          summary,
-          Math.round(this.session.now()),
-          Math.round(this.session.now()),
-        );
-        this.livePush.emit({
-          kind: 'turn.appended',
-          call_id: this.session.callId,
-          turn: {
-            speaker: 'agent',
-            text: summary,
-            t_ms: Date.now() - this.callStartMs,
-            action: liveActionFor(turn),
-          },
-        });
+        const action = liveActionFor(turn, result);
+        if (action) {
+          this.livePush.emit({
+            kind: 'turn.appended',
+            call_id: this.session.callId,
+            turn: {
+              speaker: 'agent',
+              text: '',
+              t_ms: Date.now() - this.callStartMs,
+              action,
+            },
+          });
+        }
         if (this.session.terminal) {
           const line = closingLine(this.session.terminal);
           this.livePush.emit({
@@ -268,18 +261,23 @@ export class Orchestrator {
     return new Promise<void>((resolve) => {
       const startedAt = performance.now();
       const session = this.session;
+      const callerFinalAt = this.callerFinalAt;
+      let ttsOpenMs: number | null = null;
+      let ttsFirstChunkMs: number | null = null;
+      let firstTwilioFrameSent = false;
       const handle = streamTts({
         apiKey: this.env.ELEVENLABS_API_KEY,
         voiceId: this.env.ELEVENLABS_VOICE_ID,
         modelId: this.env.ELEVENLABS_MODEL,
         text,
+        onOpen: () => {
+          if (callerFinalAt != null) {
+            ttsOpenMs = Math.round(performance.now() - callerFinalAt);
+          }
+        },
         onFirstChunk: () => {
-          if (session && this.callerFinalAt != null) {
-            session.latency.push({
-              turn_index: session.turns.length - 1,
-              decide_ms: Math.round(decideMs),
-              decide_to_first_audio_ms: Math.round(performance.now() - this.callerFinalAt),
-            });
+          if (callerFinalAt != null) {
+            ttsFirstChunkMs = Math.round(performance.now() - callerFinalAt);
           }
         },
         onChunk: (pcm16) => {
@@ -289,6 +287,18 @@ export class Orchestrator {
             const slice = mu.subarray(o, o + TWILIO_MULAW_FRAME_BYTES);
             try {
               this.twilioWs.send(makeMediaFrame(this.streamSid!, slice.toString('base64')));
+              if (!firstTwilioFrameSent && session && callerFinalAt != null) {
+                const firstTwilioFrameMs = Math.round(performance.now() - callerFinalAt);
+                firstTwilioFrameSent = true;
+                session.latency.push({
+                  turn_index: session.turns.length - 1,
+                  decide_ms: Math.round(decideMs),
+                  decide_to_first_audio_ms: firstTwilioFrameMs,
+                  tts_open_ms: ttsOpenMs,
+                  tts_first_chunk_ms: ttsFirstChunkMs ?? firstTwilioFrameMs,
+                  first_twilio_frame_ms: firstTwilioFrameMs,
+                });
+              }
             } catch (err) {
               console.warn('[voice] twilio media send failed:', (err as Error).message);
               break;
@@ -367,14 +377,11 @@ function quantile(sorted: number[], q: number): number | null {
 }
 
 function summarizeCall(session: CallSession, reason: string): Record<string, unknown> {
-  const decideToFirstAudio = session.latency
-    .map((l) => l.decide_to_first_audio_ms)
-    .filter((v) => Number.isFinite(v) && v >= 0)
-    .sort((a, b) => a - b);
-  const decide = session.latency
-    .map((l) => l.decide_ms)
-    .filter((v) => Number.isFinite(v) && v >= 0)
-    .sort((a, b) => a - b);
+  const decideToFirstAudio = latencyValues(session, (l) => l.decide_to_first_audio_ms);
+  const decide = latencyValues(session, (l) => l.decide_ms);
+  const ttsOpen = latencyValues(session, (l) => l.tts_open_ms);
+  const ttsFirstChunk = latencyValues(session, (l) => l.tts_first_chunk_ms);
+  const firstTwilioFrame = latencyValues(session, (l) => l.first_twilio_frame_ms);
   return {
     event: 'call_summary',
     call_id: session.callId,
@@ -389,11 +396,28 @@ function summarizeCall(session: CallSession, reason: string): Record<string, unk
     latency_decide_to_first_audio_ms_p95: quantile(decideToFirstAudio, 0.95),
     latency_decide_ms_p50: quantile(decide, 0.5),
     latency_decide_ms_p95: quantile(decide, 0.95),
+    latency_tts_open_ms_p50: quantile(ttsOpen, 0.5),
+    latency_tts_open_ms_p95: quantile(ttsOpen, 0.95),
+    latency_tts_first_chunk_ms_p50: quantile(ttsFirstChunk, 0.5),
+    latency_tts_first_chunk_ms_p95: quantile(ttsFirstChunk, 0.95),
+    latency_first_twilio_frame_ms_p50: quantile(firstTwilioFrame, 0.5),
+    latency_first_twilio_frame_ms_p95: quantile(firstTwilioFrame, 0.95),
   };
+}
+
+function latencyValues(
+  session: CallSession,
+  select: (event: LatencyEvent) => number | null,
+): number[] {
+  return session.latency
+    .map(select)
+    .filter((v): v is number => v != null && Number.isFinite(v) && v >= 0)
+    .sort((a, b) => a - b);
 }
 
 function liveActionFor(
   turn: { action: string } & Record<string, unknown>,
+  result: ToolResult | null,
 ):
   | { kind: 'add_to_cart'; item: string; qty: number }
   | { kind: 'transfer_to_staff'; reason: string }
@@ -404,7 +428,7 @@ function liveActionFor(
     case 'add_to_cart':
       return {
         kind: 'add_to_cart',
-        item: String(turn.menu_item_id ?? ''),
+        item: result?.kind === 'cart_added' ? result.item.name : String(turn.menu_item_id ?? ''),
         qty: Number(turn.quantity ?? 1),
       };
     case 'transfer_to_staff':

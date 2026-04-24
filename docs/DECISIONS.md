@@ -13,7 +13,7 @@ Only **ADR-038** is authoritative for the current tree. ADR-001–037 described 
 **Decision:**
 
 - `/` is one page: Twilio number, two sample buttons, `CallStage` transcript fed by `GET /api/calls/live` (SSE).
-- Samples: `public/example-calls/*.{json,mp3}` built by `pnpm example-calls:build` (OpenAI TTS in the script; live agent uses ElevenLabs in `apps/voice/`).
+- Samples: `public/example-calls/*.{json,mp3}` built by `pnpm example-calls:build` (ElevenLabs TTS, matching the live agent provider in `apps/voice/`).
 - Live turns: `apps/voice/src/live-push.ts` → `POST /api/calls/live/push` with `LIVE_CALLS_PUSH_TOKEN`.
 - Analytics UI and heavy packages (`insights`, `evals`, `extraction`, `guest-graph`, `api` app, etc.) **removed** from the repo. `packages/schema` kept for tenant/menu and future work.
 

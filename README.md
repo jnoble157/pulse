@@ -82,7 +82,7 @@ packages/
   schema/           Zod + Drizzle (kept for the voice agent's tenant + menu lookup)
   telemetry/        llm.call() wrapper used by apps/voice
 scripts/
-  example-calls.ts  Builds the two sample mp3 + transcript files (OpenAI TTS)
+  example-calls.ts  Builds the two sample mp3 + transcript files (ElevenLabs TTS)
 infra/
   drizzle/          Migrations
   docker-compose.yml  Local Postgres
@@ -118,7 +118,7 @@ pnpm dev                           # Next on :3000 + voice agent on :8788
 
 Open <http://localhost:3000>. Hit the password gate. You get the Twilio number and two sample-call buttons.
 
-**Sample calls:** the transcript streams over the same SSE channel as a real call. You need the MP3s once: `pnpm example-calls:build` (OpenAI TTS + ffmpeg). Without them, the buttons return a clear error until you run that command.
+**Sample calls:** the transcript streams over the same SSE channel as a real call. You need the MP3s once: `pnpm example-calls:build` (ElevenLabs TTS + ffmpeg). Without them, the buttons return a clear error until you run that command.
 
 **Live calls (deployed):** the voice service ships to Railway via [`apps/voice/Dockerfile`](apps/voice/Dockerfile) + [`railway.json`](railway.json); the web app stays on Vercel. In the Vercel project, set **Root Directory** to **`apps/web`** (see [`apps/web/vercel.json`](apps/web/vercel.json)); pointing at `apps/voice` or the repo root will not find Next.js. Walkthrough lives in [`apps/voice/README.md` § Deploy to Railway in 5 minutes](apps/voice/README.md#deploy-to-railway-in-5-minutes).
 
@@ -134,7 +134,7 @@ pnpm dev                           # or: pnpm dev:web  and  pnpm dev:voice  in t
 To rebuild the example call audio (after editing `scripts/example-calls.ts`):
 
 ```bash
-pnpm example-calls:build           # OpenAI TTS + ffmpeg → apps/web/public/example-calls/
+pnpm example-calls:build           # ElevenLabs TTS + ffmpeg → apps/web/public/example-calls/
 ```
 
 ### Minimum env
@@ -144,7 +144,6 @@ pnpm example-calls:build           # OpenAI TTS + ffmpeg → apps/web/public/exa
 | `DEMO_PASSWORD`         | Password gate.                                                                   |
 | `DEMO_COOKIE_SECRET`    | HMAC for the gate cookie. Any 32+ byte string.                                   |
 | `TWILIO_PHONE_NUMBER`   | The number rendered on the homepage. Cosmetic if `apps/voice/` isn't deployed.   |
-| `OPENAI_API_KEY`        | Required by `pnpm example-calls:build` (TTS for the sample call audio).          |
 | `LIVE_CALLS_PUSH_TOKEN` | Bearer token that gates `/api/calls/live/push`. The voice agent sends it.        |
 | `ANTHROPIC_API_KEY`     | `apps/voice/` only — Claude Sonnet 4.5 powers the per-turn decision.             |
 | `DEEPGRAM_API_KEY`      | `apps/voice/` only — streaming STT.                                              |

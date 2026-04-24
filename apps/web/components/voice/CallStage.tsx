@@ -366,6 +366,7 @@ function CallTranscript({ call }: { call: LiveCall | null }) {
 
 function TurnRow({ turn }: { turn: TranscriptTurn }) {
   const isAgent = turn.speaker === 'agent';
+  const hasText = turn.text.trim().length > 0;
   return (
     <li className="grid grid-cols-[64px_1fr] items-start gap-3">
       <span
@@ -377,14 +378,16 @@ function TurnRow({ turn }: { turn: TranscriptTurn }) {
         {isAgent ? 'Agent' : 'Caller'}
       </span>
       <div>
-        <p
-          className={cn(
-            'whitespace-pre-wrap text-[14.5px] leading-[1.55]',
-            isAgent ? 'text-text-primary' : 'text-text-secondary',
-          )}
-        >
-          {turn.text}
-        </p>
+        {hasText ? (
+          <p
+            className={cn(
+              'whitespace-pre-wrap text-[14.5px] leading-[1.55]',
+              isAgent ? 'text-text-primary' : 'text-text-secondary',
+            )}
+          >
+            {turn.text}
+          </p>
+        ) : null}
         {turn.action ? <ActionChip action={turn.action} /> : null}
       </div>
     </li>

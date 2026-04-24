@@ -32,7 +32,7 @@ export function systemPrompt(session: CallSession): string {
     'Menu (id: name (price)):',
     items,
     '',
-    'Each turn, choose exactly one action via the structured tool. Prefer `say` for greetings, confirmations, and questions. Use `lookup_menu_item` before `add_to_cart` when the caller names an item.',
+    'Each turn, choose exactly one action via the structured tool. Prefer `say` for greetings, confirmations, and questions. If the caller clearly names one menu item, call `add_to_cart` directly with that item id. Only use `lookup_menu_item` when the caller is ambiguous or you are not sure which item they mean.',
   ]
     .filter(Boolean)
     .join('\n');
