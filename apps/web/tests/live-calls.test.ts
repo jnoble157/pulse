@@ -154,15 +154,34 @@ describe('LiveCallStore', () => {
     expect(seen).toEqual(['call.started']);
   });
 
-  test('turn/end events for unknown call_id are dropped silently', () => {
+  test('turn.appended before call.started is buffered, then merged when start arrives', () => {
     store.emitCallEvent({
       kind: 'turn.appended',
-      call_id: 'never-started',
-      turn: { speaker: 'agent', text: 'orphan', t_ms: 0 },
+      call_id: 'c1',
+      turn: { speaker: 'agent', text: 'early', t_ms: 0 },
     });
+    const mid = store.snapshotCalls();
+    expect(mid).toHaveLength(1);
+    expect(mid[0].turns).toHaveLength(1);
+    expect(mid[0].turns[0].text).toBe('early');
+
+    store.emitCallEvent({
+      kind: 'call.started',
+      call_id: 'c1',
+      started_at: 100,
+      source: 'twilio',
+      caller_label: '+15551234567',
+    });
+    const fin = store.snapshotCalls()[0];
+    expect(fin.turns).toHaveLength(1);
+    expect(fin.started_at).toBe(100);
+    expect(fin.caller_label).toBe('+15551234567');
+  });
+
+  test('call.ended for a call that never existed is still ignored', () => {
     store.emitCallEvent({
       kind: 'call.ended',
-      call_id: 'never-started',
+      call_id: 'ghost',
       ended_at: 1,
       reason: 'error',
     });

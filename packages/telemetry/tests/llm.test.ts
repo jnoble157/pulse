@@ -87,5 +87,4 @@ describe('toToolSchema — draft-2020-12 compatibility', () => {
     const json = toToolSchema(schema);
     expect(findKey(json, 'nullable')).toBe(false);
   });
-
 });

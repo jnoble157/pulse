@@ -33,6 +33,9 @@ import { applyTool, type ToolResult } from './brain/tools.js';
 import { LivePushClient } from './live-push.js';
 import type { VoiceEnv } from './env.js';
 
+/** Twilio 8kHz μ-law media frames are ~20ms (160 samples → 160 bytes). */
+const TWILIO_MULAW_FRAME_BYTES = 160;
+
 export type TenantContext = {
   tenantId: string;
   tenantSlug: string;
@@ -282,7 +285,15 @@ export class Orchestrator {
         onChunk: (pcm16) => {
           const pcm8 = downsample16to8(pcm16);
           const mu = pcm16ToMuLaw(pcm8);
-          this.twilioWs.send(makeMediaFrame(this.streamSid!, mu.toString('base64')));
+          for (let o = 0; o < mu.length; o += TWILIO_MULAW_FRAME_BYTES) {
+            const slice = mu.subarray(o, o + TWILIO_MULAW_FRAME_BYTES);
+            try {
+              this.twilioWs.send(makeMediaFrame(this.streamSid!, slice.toString('base64')));
+            } catch (err) {
+              console.warn('[voice] twilio media send failed:', (err as Error).message);
+              break;
+            }
+          }
         },
         onDone: () => {
           this.speaking = null;

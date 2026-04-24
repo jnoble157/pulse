@@ -37,13 +37,10 @@ export function streamTts(opts: TtsOptions): { cancel: () => void } {
 
   ws.on('open', () => {
     if (cancelled) return ws.close();
-    // `generation_config` still helps when auto_mode is off on older accounts;
-    // 50 is the API minimum per docs.
     ws.send(
       JSON.stringify({
         text: ' ',
         voice_settings: { stability: 0.45, similarity_boost: 0.7, style: 0.2 },
-        generation_config: { chunk_length_schedule: [50, 80, 120, 160] },
       }),
     );
     const chunk = `${opts.text.endsWith(' ') ? opts.text : `${opts.text} `}`;

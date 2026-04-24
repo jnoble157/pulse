@@ -71,16 +71,19 @@ export function CallStage({ phoneNumber }: Props) {
           source: 'twilio' | 'example';
           caller_label?: string | null;
         };
-        setCalls((prev) => ({
-          ...prev,
-          [ev.call_id]: {
-            call_id: ev.call_id,
-            source: ev.source,
-            caller_label: ev.caller_label ?? null,
-            started_at: ev.started_at,
-            turns: [],
-          },
-        }));
+        setCalls((prev) => {
+          const existing = prev[ev.call_id];
+          return {
+            ...prev,
+            [ev.call_id]: {
+              call_id: ev.call_id,
+              source: ev.source,
+              caller_label: ev.caller_label ?? existing?.caller_label ?? null,
+              started_at: ev.started_at,
+              turns: existing?.turns ?? [],
+            },
+          };
+        });
         setActiveCallId(ev.call_id);
       });
 
@@ -90,8 +93,16 @@ export function CallStage({ phoneNumber }: Props) {
           turn: TranscriptTurn;
         };
         setCalls((prev) => {
-          const cur = prev[ev.call_id];
-          if (!cur) return prev;
+          let cur = prev[ev.call_id];
+          if (!cur) {
+            cur = {
+              call_id: ev.call_id,
+              source: 'twilio',
+              caller_label: null,
+              started_at: Date.now(),
+              turns: [],
+            };
+          }
           return {
             ...prev,
             [ev.call_id]: { ...cur, turns: [...cur.turns, ev.turn] },
@@ -446,7 +457,7 @@ function EmptyTranscript({ hasCall }: { hasCall: boolean }) {
       </p>
       <p className="mt-3 max-w-[42ch] text-[14px] leading-snug text-text-secondary">
         {hasCall
-          ? 'Waiting for the first turn.'
+          ? 'You hear the agent on your phone. Lines appear here as soon as each side speaks — if nothing shows yet, give it a second.'
           : 'Click a sample call above to hear what the agent sounds like, or dial the number to try one yourself. The transcript will appear here in real time.'}
       </p>
     </div>

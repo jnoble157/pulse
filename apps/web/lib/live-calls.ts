@@ -90,6 +90,15 @@ class LiveCallStore {
 
   private apply(event: CallEvent): void {
     if (event.kind === 'call.started') {
+      const existing = this.calls.get(event.call_id);
+      if (existing) {
+        // Turns can arrive before `call.started` (parallel live-push HTTP).
+        // Merge authoritative metadata without wiping buffered turns.
+        existing.source = event.source;
+        existing.caller_label = event.caller_label ?? existing.caller_label;
+        existing.started_at = event.started_at;
+        return;
+      }
       this.calls.set(event.call_id, {
         call_id: event.call_id,
         source: event.source,
@@ -99,8 +108,18 @@ class LiveCallStore {
       });
       return;
     }
-    const call = this.calls.get(event.call_id);
-    if (!call) return; // ignore turn/end for unknown calls
+    let call = this.calls.get(event.call_id);
+    if (!call && event.kind === 'turn.appended') {
+      call = {
+        call_id: event.call_id,
+        source: 'twilio',
+        caller_label: null,
+        started_at: Date.now(),
+        turns: [],
+      };
+      this.calls.set(event.call_id, call);
+    }
+    if (!call) return;
     if (event.kind === 'turn.appended') {
       call.turns.push(event.turn);
       return;
