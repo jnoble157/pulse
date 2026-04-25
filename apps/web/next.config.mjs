@@ -1,9 +1,6 @@
 /**
- * Next config — voice agent demo.
- *
- * The web app no longer imports any workspace packages: the analytics stack
- * and shared schema were removed when the demo pivoted to a single-page
- * voice-agent surface. Standard headers stay.
+ * Next config — Pulse web app (voice agent demo). Self-contained under `apps/web`.
+ * Security headers below.
  */
 /** @type {import('next').NextConfig} */
 const nextConfig = {

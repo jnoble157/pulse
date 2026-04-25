@@ -2,7 +2,7 @@
  * Password-gated access.
  *
  * v1 demo: single `DEMO_PASSWORD` on every page that isn't public. Clerk
- * replaces this post-v1 (SECURITY.md §4). The `/` route is now the demo
+ * replaces this post-v1 (README § Security). The `/` route is now the demo
  * itself (no marketing landing) so it lives behind the gate alongside the
  * rest; only `/gate`, `/api/health`, and Next internals are public.
  *

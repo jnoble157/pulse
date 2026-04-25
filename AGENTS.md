@@ -2,19 +2,17 @@
 
 Operating manual for any agent (or human) touching this repo. Read before editing. If something here contradicts a user message, ask.
 
-Most of the code here will be written by agents. The human leverage is in this file, `packages/schema/`, and the voice-agent prompt in `apps/voice/src/brain/`. Those three are the ones to be careful with. Everything else is replaceable.
+High-leverage files: this doc, `packages/schema/`, `apps/voice/src/brain/prompt.ts`. Treat schema and prompt edits as high risk.
 
 ## What this is
 
-Pulse is a single-page demo of a real working restaurant voice agent. The front door at `/` shows a Twilio phone number, two pre-recorded sample calls, and a live transcript area. Clicking a sample plays its audio in the browser while the transcript scrolls in real time on the page. Dialing the Twilio number does the same thing, except the agent is actually answering. Both paths feed the same SSE channel and render through the same component (`apps/web/components/voice/CallStage.tsx`), so there's no special-case rendering.
+Pulse is a single-page demo of a restaurant voice agent. `/` shows a Twilio number, two pre-recorded sample calls, and a live transcript. Samples and live calls share `CallStage` + the same SSE channel (`apps/web/components/voice/CallStage.tsx`).
 
-The previous analytics surface (operator brief, dashboard depth at `/internals/*`, extraction + insights pipelines, eval harness) was removed from the repo on 2026-04-23 — see [ADR-038](docs/DECISIONS.md#adr-038--pivot-to-a-voice-agent-demo-remove-the-analytics-surface). Most of the older invariants in this file used to enforce that surface. They're gone too.
-
-Read [`README.md`](README.md), [`docs/HANDOFF.md`](docs/HANDOFF.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) (ADR-038) before large changes.
+Read [`README.md`](README.md) and [`apps/voice/README.md`](apps/voice/README.md) (§ PSTN outbound audio) before large changes.
 
 ## Hard invariants
 
-Violating one of these is a blocker, not a preference. Don't.
+Treat these as ship blockers.
 
 1. **Schemas in `packages/schema/` are the single source of truth.** DB types and tenant lookups in `apps/voice/` derive from Zod. A duplicated `interface` or `type` that mirrors a schema is a bug.
 
@@ -24,106 +22,82 @@ Violating one of these is a blocker, not a preference. Don't.
 
 4. **Tenant isolation is Postgres RLS.** Every query in `apps/voice/` runs with `app.tenant_id` set. Cross-tenant access requires an explicit `// CROSS-TENANT: reason` comment. App-layer filtering is defense in depth, not the primary boundary.
 
-5. **The front door at `/` is the single voice-agent demo.** One page: hero, phone number, two example call buttons, live transcript. No second route, no marketing landing, no `/internals/*` resurrection without a new ADR superseding ADR-038. Live calls and example playbacks render through the same `CallStage` component and the same SSE channel.
+5. **The homepage (`/`) is the only voice-agent UI.** One page: hero, phone number, two sample-call buttons, live transcript. No parallel homepage or duplicate transcript UX. Samples and live calls use the same `CallStage` + SSE path.
 
-6. **No fake liveness.** The transcript area shows real turns from real call sessions (whether live or example playback driven by the example endpoint). Don't add a hardcoded "thinking…" animation, a fabricated latency display, or a canned response that wasn't actually emitted by the agent or the example simulator. If you can't back what's on screen with an event that fired, don't put it there.
+6. **No fake liveness.** The transcript shows real turns from real sessions (live or example playback). No fabricated “thinking…” lines, fake latency numbers, or canned agent lines that never came from the stack.
 
-7. **Mobile-first. No page ships broken below 375px.** Touch targets ≥ 44px. The phone number must be tap-to-dial via `tel:` on mobile. See [`docs/DESIGN.md`](docs/DESIGN.md#mobile).
+7. **Mobile-first. Nothing broken below 375px.** Touch targets ≥ 44px. Phone number is `tel:` on mobile. Transcript scrolls; no hover-only affordances without a tap equivalent.
 
-8. **No placeholder copy. Ever.** Every UI string is written with intent. If you don't know what goes in a slot, ask.
+8. **No placeholder copy.** Every UI string is intentional. If you do not know the copy, ask.
 
-9. **Design tokens are the only source of color, type, spacing.** Tokens live in `apps/web/app/globals.css` (CSS custom properties wired through `tailwind.config.ts`). Inline hex or px values in a component are bugs.
+9. **Design tokens only** for color, type, spacing: `apps/web/app/globals.css` (CSS variables) via `tailwind.config.ts`. Inline hex or arbitrary `px` in components are bugs. Default motion ~150ms; wrap decorative motion >100ms in `prefers-reduced-motion`.
 
-10. **Example calls are pre-recorded, honestly framed.** The two example buttons play `apps/web/public/example-calls/<scenario>.mp3` and emit the matching `<scenario>.json` transcript through the same SSE channel as live calls. The UI labels them as samples; don't dress them up as live. Generated by `pnpm example-calls:build` (`scripts/example-calls.ts`) using ElevenLabs Flash v2.5, the same provider as the live agent in `apps/voice/` (Starter or higher recommended for public demos; see `apps/voice/README.md` §Env for credits + licensing).
+10. **Example calls are pre-recorded, honestly labeled.** Buttons play `apps/web/public/example-calls/<scenario>.mp3` and stream `<scenario>.json` through the same SSE channel as live calls. Build: `pnpm example-calls:build` (`scripts/example-calls.ts`). ElevenLabs licensing: see `apps/voice/README.md` § Env.
 
-11. **`apps/voice/` is the live transport.** Per-call lifecycle events (`call.started`, `turn.appended`, `call.ended`) are pushed by `apps/voice/src/live-push.ts` to `POST /api/calls/live/push` (bearer-token auth via `LIVE_CALLS_PUSH_TOKEN`). Don't bypass the push client; don't add a parallel transport. If you need a new event type, add it to `apps/web/components/voice/types.ts` and wire it through `LiveCallStore` (`apps/web/lib/live-calls.ts`).
+11. **`apps/voice/` is the live transport.** Events (`call.started`, `turn.appended`, `call.ended`) go through `apps/voice/src/live-push.ts` → `POST /api/calls/live/push` with `LIVE_CALLS_PUSH_TOKEN`. No parallel transport. New event types: extend `apps/web/components/voice/types.ts`, `LiveCallStore` (`apps/web/lib/live-calls.ts`), `CallStage`, emitter in voice or `apps/web/app/api/calls/example/`.
 
-12. **Demo data is labeled as a demo.** The Notes section on `/` says the agent was built for Tony's Pizza in Austin (fictional). Don't claim numbers, traffic, or measurements that weren't actually measured. The 30-second test for this demo is whether a real visitor hears a real agent — that test fails the moment we add fake metrics around it.
+12. **Demo data stays honest.** Notes on `/` say Tony's Pizza Austin is fictional. No fake traffic or metrics.
 
 ## Don't
 
 - Bypass `llm.call()` to save a line.
 - Add a DB column without a Drizzle migration in the same PR.
 - Disable RLS "to debug faster." Use `SET LOCAL app.tenant_id = '...'`.
-- Inline real phone numbers, emails, or names anywhere in code or docs except `TWILIO_PHONE_NUMBER` and the explicit contact links in `docs/DEMO.md`.
+- Inline real phone numbers, emails, or personal identifiers in code or docs except `TWILIO_PHONE_NUMBER` and contact info already chosen for the public homepage/footer.
 - Commit `.env*` files.
 - Fabricate file paths or line numbers. Grep first.
 - Hardcode colors, font sizes, or spacing. Use tokens.
 - Ship animations longer than 250ms. 150ms default.
-- Write marketing copy into the product ("powerful", "innovative", "AI-driven"). Say what it does.
+- Marketing adjectives in product copy (“powerful”, “AI-driven”). Say what it does.
 - Bypass the password gate in dev. Configure the gate or use `/gate` like production.
-- Add a route at the top level (`apps/web/app/<name>/`) without an ADR. The front door is `/`. The only API routes that exist today are `/api/calls/live`, `/api/calls/live/push`, `/api/calls/example`, `/api/health`. Don't add a fifth without a reason that survives review.
-- Resurrect `/internals/*`, the operator brief, the eval replay, the customer graph, the menu intelligence page, or the digest preview without a new ADR superseding ADR-038. The git history is there if a follow-on conversation needs it.
-- Make the example call buttons stream "real-time" by feeding fake turns at a delay larger than what the audio actually takes. The audio length and the transcript timeline are paired in the JSON manifest for a reason.
+- Add a top-level `apps/web/app/<name>/` route without a strong reason. API routes today: `/api/calls/live`, `/api/calls/live/push`, `/api/calls/example`, `/api/health`.
+- Add a second transcript pipeline or duplicate homepage that bypasses `CallStage` / the live SSE contract.
+- Desync example playback from audio: transcript JSON timing must match the mp3.
 
 ## Recipes
 
 ### Add an example call scenario
 
-1. Edit `scripts/example-calls.ts` and add a new entry to `SCENARIOS` with the turns. Each turn is `{ speaker: 'caller' | 'agent', text, voice }`.
-2. `ELEVENLABS_API_KEY=... pnpm example-calls:build` — writes `apps/web/public/example-calls/<slug>.mp3` and `<slug>.json`.
-3. Add a new button to `apps/web/components/voice/CallStage.tsx`. Wire it to `POST /api/calls/example` with the new `scenario` value.
-4. Update the Notes copy on `apps/web/app/page.tsx` if the new scenario tells a story the page doesn't already.
+1. Edit `scripts/example-calls.ts` — add `SCENARIOS` entry; turns `{ speaker: 'caller' | 'agent', text, voice }`.
+2. `ELEVENLABS_API_KEY=... pnpm example-calls:build` → `apps/web/public/example-calls/<slug>.{mp3,json}`.
+3. New button in `apps/web/components/voice/CallStage.tsx` → `POST /api/calls/example` with `scenario`.
+4. Adjust Notes on `apps/web/app/page.tsx` if the story changed.
 
-### Change the live agent's behavior
+### Change the live agent
 
-1. Read [`apps/voice/README.md`](apps/voice/README.md) and [`docs/HANDOFF.md`](docs/HANDOFF.md) (§PSTN outbound audio if you touch TTS/Twilio). The agent is a per-turn loop: `decide()` returns one `AgentTurn` validated by `AgentTurnSchema` in `apps/voice/src/brain/tools.ts`.
-2. The system prompt lives in `apps/voice/src/brain/prompt.ts`. Edit it inline (this surface isn't using the deleted versioned-prompts package). Keep changes small; this prompt is paged into Claude on every turn.
-3. Add or modify a tool in `brain/tools.ts`. `AgentTurnSchema` is a **single `z.object` + `superRefine`** (Anthropic forbids top-level `anyOf`/`oneOf` on tool `input_schema`). Keep `applyTool` exhaustive for every `action` value.
-4. Test by dialing the live agent or, for tooling-only changes, by running `pnpm dev` in `apps/voice` and POSTing a synthetic transcript to a local fixture (no harness exists yet; if you build one, see ADR-038's "Cons" — that's the gap).
+1. Read `apps/voice/README.md` (§ PSTN if you touch TTS/Twilio). Loop: `decide()` → `AgentTurnSchema` in `apps/voice/src/brain/tools.ts`.
+2. System prompt: `apps/voice/src/brain/prompt.ts` (small edits; paged every turn).
+3. Tools: `brain/tools.ts` — single `z.object` + `superRefine` for Anthropic; keep `applyTool` exhaustive.
+4. Test: dial live agent, or local `pnpm dev` in `apps/voice` with synthetic traffic as you prefer.
 
 ### Add a transport event type
 
-1. Add it to `CallEvent` in `apps/web/components/voice/types.ts`.
-2. Handle it in `LiveCallStore.publish` (`apps/web/lib/live-calls.ts`) so subscribers see it.
-3. Render it in `CallStage` (`apps/web/components/voice/CallStage.tsx`).
-4. Emit it from `apps/voice/src/live-push.ts` (or `/api/calls/example/route.ts` for example calls if it applies there too).
+1. `CallEvent` in `apps/web/components/voice/types.ts`.
+2. `LiveCallStore.publish` in `apps/web/lib/live-calls.ts`.
+3. `CallStage.tsx`.
+4. Emit from `apps/voice/src/live-push.ts` and/or `apps/web/app/api/calls/example/route.ts`.
 
-### Build a UI surface
+### Build or change UI
 
-1. Read [`docs/DESIGN.md`](docs/DESIGN.md). Color, type, spacing, motion come from tokens.
-2. The page is `apps/web/app/page.tsx`. The interactive surface is `apps/web/components/voice/CallStage.tsx`. Anything outside those two files needs a reason.
-3. Design mobile-first. 375px layout before desktop.
-4. Write real copy in the same PR as layout. No TODOs.
-5. Wrap motion over 100ms in `prefers-reduced-motion`.
-6. Build empty and error states alongside the happy path. (Empty: no calls in flight, no examples yet played. Error: SSE disconnected, example fetch failed, audio failed to load.)
-7. Keyboard-test. Tab order logical; focus rings visible.
-8. Screenshot mobile + desktop in the PR.
+1. Tokens + mobile rules above; reference `globals.css`.
+2. Primary files: `apps/web/app/page.tsx`, `apps/web/components/voice/CallStage.tsx`.
+3. Mobile-first (375px first). Real copy in the same change. Empty + error states (SSE drop, example fetch fail, audio error). Keyboard: tab order, focus rings.
 
 ## Workflow
 
-- Plan before writing when touching >2 files.
-- Small PRs. ≤400 LOC preferred.
-- `pnpm check` before claiming done (typecheck + lint + unit tests).
-- PR descriptions include evidence: screenshots, captured SSE traces, or terminal output.
-- Commit messages explain why, not what. Diff already shows what.
-- Ask one clarifying question rather than take a 400-line wrong turn.
-
-## Tone
-
-- Plain, opinionated code. Tuesday 3pm at a coffee shop, not FAANG-style.
-- No premature abstractions. Two concrete users before you generalize.
-- Error messages address the operator, not the stack. _"Couldn't reach the voice agent — check that `apps/voice/` is running and `LIVE_CALLS_PUSH_TOKEN` matches."_ Not _"push_failed: 401"_.
-- Comments explain non-obvious _why_. Not what.
-- UI copy is specific. _"This call disconnected before the agent finished."_ Not _"Something went wrong."_
+- Touching many files: sketch the change first.
+- `pnpm check` before done. Commit message = why.
+- Errors for humans (e.g. voice unreachable → check process + `LIVE_CALLS_PUSH_TOKEN`), not bare status codes.
 
 ## Open questions
 
-Surface these when you hit them; don't silently pick:
+Do not silently decide these:
 
-- **Multi-process / multi-region.** `LiveCallStore` is in-memory. The demo runs single-process (one Vercel region or local dev), so SSE clients only see calls handled by the same process. A real multi-region deployment needs a Redis/Postgres-backed pub/sub or a sticky routing layer.
-- **Live call recording / consent.** The voice agent doesn't record audio to S3, and there's no consent prompt. Don't deploy outside California one-party-consent or test environments without adding both.
-- **Multi-language.** Deepgram is fixed to `en-US`. The brain prompt is English only.
-- **Persistence.** Live calls aren't durably stored anywhere today (the previous `/ingest/upload` path was deleted in ADR-038). If a follow-on analytics surface comes back, the `LivePushClient` already has the per-turn data needed; persistence is a one-table addition.
+- **Multi-process:** `LiveCallStore` is in-memory; multi-region needs Redis/Postgres pub/sub or sticky routing.
+- **Recording / consent:** No S3 recording or consent line here; legal requirements vary by jurisdiction.
+- **Language:** Deepgram `en-US`; prompt English-only.
+- **Persistence:** Live turns are not stored durably; adding that is a small schema + write path if needed later.
 
-## Citing this file
+## Editing this file
 
-Cite section numbers: _"per AGENTS.md §Hard invariants #5, the front door at `/` is the single voice-agent demo."_ Makes reviews tractable and keeps rule changes intentional.
-
-## When to edit this file
-
-- A new invariant emerges from a bug or incident.
-- A recipe becomes a repeated pattern (3× = pattern).
-- A decision in `docs/DECISIONS.md` changes how agents work day-to-day.
-
-Not for aesthetic changes. Keep it dense.
+Update when an invariant changes after a real bug, a recipe repeats (3×), or the demo’s security/transport story changes. Otherwise leave it alone.

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /**
- * CSS custom properties — match tailwind.config.ts + DESIGN.md §2–§4.
+ * CSS custom properties — match tailwind.config.ts (AGENTS.md §Hard invariants #9).
  * Components should prefer Tailwind classes; CSS vars exist so the grid
  * overlay, keyframes, and inline styles can read the same palette.
  */
@@ -60,7 +60,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/** Live dot (DESIGN.md §6 — 1.5s gentle pulse). */
+/** Live dot — 1.5s gentle pulse (see AGENTS.md motion / tokens). */
 @keyframes pulse-dot {
   0%,
   100% {

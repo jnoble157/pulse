@@ -1,11 +1,8 @@
 # @pulse/schema
 
-Zod + Drizzle schema and DB helpers for Pulse.
+Zod + Drizzle: models, migrations, RLS, DB helpers.
 
-## Scope
-
-- **Active in the voice demo:** `tenants`, `menus`, tenant lookup helpers, migrations, and RLS setup.
-- **Kept for continuity:** legacy extraction/insight tables remain in schema and migrations, but are not part of the current `/` voice demo flow.
+The voice agent needs tenant + menu (+ lookups from the same schema). `pnpm seed:voice` seeds the demo tenant. Other tables in `src/db.ts` exist for migrations already applied—only use what the apps import.
 
 ## Commands
 

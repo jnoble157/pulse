@@ -6,8 +6,6 @@
  * edge case. Bottom: the live transcript area renders both the sample calls
  * and any real call coming in to the Twilio number, via the same SSE channel
  * (`/api/calls/live`) so there's no special-case path.
- *
- * No analytics dashboards on this page. The product is the agent.
  */
 import Link from 'next/link';
 import { CallStage } from '@/components/voice/CallStage';

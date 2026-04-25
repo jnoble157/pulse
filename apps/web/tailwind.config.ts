@@ -1,9 +1,6 @@
 /**
- * Tailwind config — `docs/DESIGN.md` tokens made real.
- *
- * Every color / radius / spacing / shadow name here matches DESIGN.md §2–§5.
- * If a color is missing, add it to DESIGN.md first, then wire it here. Never
- * inline a hex in a component.
+ * Tailwind config — mirrors `app/globals.css` tokens (AGENTS.md §Hard invariants #9).
+ * Add new palette entries in globals.css first, then extend here. Never inline hex in components.
  */
 import type { Config } from 'tailwindcss';
 import typography from '@tailwindcss/typography';

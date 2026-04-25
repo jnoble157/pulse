@@ -3,7 +3,7 @@
  * `pnpm db:migrate` — run Drizzle migrations, then apply RLS policies.
  *
  * RLS is applied after migrations so policies survive schema changes.
- * See SECURITY.md §3 for the invariant we're enforcing.
+ * See README § Security + AGENTS.md §Hard invariants #4 for the RLS invariant.
  */
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';

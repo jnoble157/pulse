@@ -5,7 +5,7 @@
  * keeping one open across turns and dealing with state desync on barge-in).
  * Output format is `ulaw_8000`, which Twilio Media Streams can play directly.
  * Query `auto_mode=true` avoids the default chunk-length buffer on short lines.
- * The first audio chunk back is the latency we publish in DEMO.md §3.
+ * The first audio chunk back is the latency surfaced in call_summary / apps/voice/README § Latency.
  *
  * Reference: https://elevenlabs.io/docs/api-reference/text-to-speech-websockets
  */

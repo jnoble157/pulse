@@ -1,5 +1,5 @@
 /**
- * PII tokenization primitives (SECURITY.md §2, ADR-009).
+ * PII tokenization primitives (schema types + helpers).
  *
  * Pure types + helpers for tokenized PII maps.
  *

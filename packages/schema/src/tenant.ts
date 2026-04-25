@@ -1,7 +1,7 @@
 /**
  * withTenant: binds `app.tenant_id` for the duration of a callback.
  *
- * Per AGENTS.md §Hard invariants #4 and SECURITY.md §3, every DB query must
+ * Per AGENTS.md §Hard invariants #4 and README § Security, every DB query must
  * run with `app.tenant_id` set so RLS can enforce isolation. We use
  * `SET LOCAL` inside a transaction so pooled connections don't leak.
  *

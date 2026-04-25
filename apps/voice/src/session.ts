@@ -5,7 +5,7 @@
  *   - turns:        the running transcript (agent + caller, with timestamps)
  *   - cart:         items the agent committed to via `add_to_cart`
  *   - terminal:     `transferred` / `ended` / null
- *   - latency_log:  per-turn measured times for the DEMO.md publish
+ *   - latency_log:  per-turn measured times (see apps/voice/README § Latency)
  *
  * Thin by design. The audio + brain modules act on it. The ingest module
  * reads it once at hangup and converts to `IngestCallEvent`.
